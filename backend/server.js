@@ -634,6 +634,17 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const requestedMafiaCount = settings.mafiaCount;
+    const numPlayers = room.players.length;
+    if (requestedMafiaCount === 2 && numPlayers < 6) {
+      socket.emit('error', 'Cannot set 2 Mafias: Need at least 6 players.');
+      return;
+    }
+    if (requestedMafiaCount === 3 && numPlayers < 9) {
+      socket.emit('error', 'Cannot set 3 Mafias: Need at least 9 players.');
+      return;
+    }
+
     room.settings = {
       night: Number(settings.night),
       day: Number(settings.day),
@@ -672,17 +683,17 @@ io.on('connection', (socket) => {
     if (chosenMafiaCount && chosenMafiaCount !== 'auto') {
       mafiaCount = Number(chosenMafiaCount);
       // Validate player count for manual mafia count
-      if (mafiaCount === 2 && numPlayers < 5) {
-        socket.emit('error', 'Need at least 5 players for 2 Mafias.');
+      if (mafiaCount === 2 && numPlayers < 6) {
+        socket.emit('error', 'Need at least 6 players for 2 Mafias.');
         return;
       }
-      if (mafiaCount === 3 && numPlayers < 7) {
-        socket.emit('error', 'Need at least 7 players for 3 Mafias.');
+      if (mafiaCount === 3 && numPlayers < 9) {
+        socket.emit('error', 'Need at least 9 players for 3 Mafias.');
         return;
       }
     } else {
-      if (numPlayers >= 5 && numPlayers <= 7) mafiaCount = 2;
-      if (numPlayers >= 8) mafiaCount = 3;
+      if (numPlayers >= 6 && numPlayers <= 8) mafiaCount = 2;
+      if (numPlayers >= 9) mafiaCount = 3;
     }
 
     let doctorCount = 1;

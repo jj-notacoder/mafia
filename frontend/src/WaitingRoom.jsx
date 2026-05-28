@@ -275,15 +275,23 @@ export default function WaitingRoom({
                   <div className="flex gap-2">
                     {['auto', 1, 2, 3].map((val) => {
                       const isActive = (roomState.settings.mafiaCount || 'auto') === val;
+                      const numPlayers = roomState.players.length;
+                      let isDisabled = false;
+                      if (val === 2 && numPlayers < 6) isDisabled = true;
+                      if (val === 3 && numPlayers < 9) isDisabled = true;
+
                       return (
                         <button
                           key={val}
                           type="button"
-                          onClick={() => handleSettingChange('mafiaCount', val)}
-                          className={`flex-1 py-1.5 text-[8px] md:text-[9px] font-bold uppercase border ${
-                            isActive
-                              ? 'bg-red-600 border-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.6)] animate-pulse'
-                              : 'bg-black border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+                          disabled={isDisabled}
+                          onClick={() => !isDisabled && handleSettingChange('mafiaCount', val)}
+                          className={`flex-1 py-1.5 text-[8px] md:text-[9px] font-bold uppercase border transition-colors ${
+                            isDisabled
+                              ? 'bg-gray-950 border-gray-900 text-gray-700 cursor-not-allowed opacity-40'
+                              : isActive
+                              ? 'bg-red-600 border-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.6)] animate-pulse cursor-pointer'
+                              : 'bg-black border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 cursor-pointer'
                           }`}
                         >
                           {val === 'auto' ? 'AUTO' : val}
