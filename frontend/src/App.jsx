@@ -319,10 +319,9 @@ function App() {
           />
         ) : (
           <GameArena
-            gameState={roomState ? roomState.gameState : 'PLAYING'}
-            players={roomState ? roomState.players : []}
-            localPlayerId={socket.id}
             socket={socket}
+            localPlayerId={socket.id}
+            roomState={roomState}
           />
         )}
       </div>

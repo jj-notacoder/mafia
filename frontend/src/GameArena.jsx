@@ -2,21 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function GameArena({
-  gameState,
-  players = [],
-  localPlayerId,
   socket,
+  localPlayerId,
+  roomState,
 }) {
   const [isRevealing, setIsRevealing] = useState(true);
   const [targetPlayer, setTargetPlayer] = useState('');
   const [mafiaChatMsg, setMafiaChatMsg] = useState('');
-  const [mafiaLogs, setMafiaLogs] = useState([
-    { id: '1', text: '[SYSTEM] Night fell; Mafia chat active.' }
-  ]);
-  const [systemLogs, setSystemLogs] = useState([
-    { id: '1', text: '[SYSTEM] Day phase initiated.' },
-    { id: '2', text: '[SYSTEM] Cast your votes in the discussion.' }
-  ]);
+  
+  // Extract values from roomState
+  const gameState = roomState ? roomState.gameState : 'LOBBY';
+  const players = roomState ? roomState.players : [];
+  const systemLogs = roomState ? roomState.systemLogs : [];
+  const mafiaChatLogs = roomState ? roomState.mafiaChatLogs : [];
   
   const chatEndRef = useRef(null);
 
@@ -25,7 +23,7 @@ export default function GameArena({
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [mafiaLogs, systemLogs]);
+  }, [mafiaChatLogs, systemLogs]);
 
   // Role reveal timer - exactly 4 seconds
   useEffect(() => {
@@ -63,8 +61,22 @@ export default function GameArena({
     subtext = 'PROTECT THE INNOCENT';
   }
 
-  // Determine game phase (default to DAY if server gameState is just 'PLAYING')
-  const isNight = gameState === 'PLAYING_NIGHT' || gameState === 'NIGHT';
+  // Determine game phase
+  const isNight = gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR';
+
+  // Blocker text overlay logic for inactive players during night phases
+  let showBlockerOverlay = false;
+  let blockerText = '';
+
+  if (!isRevealing && isAlive) {
+    if (gameState === 'NIGHT_MAFIA' && role !== 'MAFIA') {
+      showBlockerOverlay = true;
+      blockerText = 'THE MAFIA IS PLOTTING...';
+    } else if (gameState === 'NIGHT_DOCTOR' && role !== 'DOCTOR') {
+      showBlockerOverlay = true;
+      blockerText = 'THE DOCTOR IS MAKING THEIR ROUNDS...';
+    }
+  }
 
   // Deterministic 8-bit sprite generator for retro avatars
   const getAvatarSvg = (name) => {
@@ -103,10 +115,7 @@ export default function GameArena({
   const handleSendMafiaMsg = (e) => {
     e.preventDefault();
     if (!mafiaChatMsg.trim()) return;
-    setMafiaLogs((prev) => [
-      ...prev,
-      { id: Date.now().toString(), text: `[MAFIA] ${localPlayer.name}: ${mafiaChatMsg}` }
-    ]);
+    socket.emit('mafiaChat', { msg: mafiaChatMsg });
     setMafiaChatMsg('');
   };
 
@@ -115,11 +124,19 @@ export default function GameArena({
     if (!targetPlayer) return;
     const eventName = role === 'MAFIA' ? 'mafiaTarget' : 'doctorTarget';
     socket.emit(eventName, { targetId: targetPlayer });
-    alert(`ACTION SUBMITTED: TARGET - ${players.find((p) => p.id === targetPlayer)?.name}`);
+    setTargetPlayer('');
   };
+
+  // Check if player voted during Voting phase
+  const hasVoted = roomState && roomState.dayVotes && roomState.dayVotes[localPlayerId] !== undefined;
 
   return (
     <div className="w-full h-full flex items-center justify-center p-4">
+      {/* Pinned Countdown Timer - Pinned permanently to top center of screen */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 bg-black/90 border-4 border-yellow-400 text-yellow-400 px-6 py-2 font-mono text-xs md:text-sm font-bold tracking-widest uppercase select-none shadow-[0_0_15px_rgba(234,179,8,0.4)]">
+        TIME: {roomState ? roomState.timer : 0}s
+      </div>
+
       <AnimatePresence>
         {isRevealing && (
           <motion.div
@@ -156,8 +173,21 @@ export default function GameArena({
       </AnimatePresence>
 
       {/* Main Game Interface (renders behind the overlay and appears once overlay fades) */}
-      <div className="w-full max-w-5xl bg-black/85 backdrop-blur-[2px] border-4 border-gray-700 pixel-container text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh]">
+      <div className="w-full max-w-5xl bg-black/85 backdrop-blur-[2px] border-4 border-gray-700 pixel-container text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative">
         
+        {/* Night Sub-Phase Blocker Overlay */}
+        {showBlockerOverlay && (
+          <div className="absolute inset-0 bg-black z-30 flex flex-col items-center justify-center select-none rounded">
+            <div className="crt-scanlines crt-flicker"></div>
+            <div className="crt-light-roll"></div>
+            <div className="crt-vignette"></div>
+            <span className="text-4xl animate-pulse mb-4">🌙</span>
+            <p className="text-xs md:text-sm text-red-500 uppercase font-bold tracking-[0.25em] text-center px-4 pixel-font animate-pulse">
+              {blockerText}
+            </p>
+          </div>
+        )}
+
         {/* Header Panel */}
         <div className="border-b-4 border-gray-700 pb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-center sm:text-left">
@@ -169,13 +199,13 @@ export default function GameArena({
             </span>
           </div>
 
-          {/* Current Phase Indicator & Simulated Clock */}
+          {/* Current Phase Indicator */}
           <div className="flex items-center gap-4 bg-red-950/20 border-2 border-red-900 px-5 py-2">
             <span className="text-xs md:text-sm font-bold tracking-wider uppercase animate-pulse">
               PHASE: {isNight ? 'NIGHT' : 'DAY'}
             </span>
             <span className="text-sm md:text-md font-mono font-bold text-red-500">
-              {isNight ? 'NIGHT PHASE' : 'DISCUSSION'}
+              {gameState.replace('PLAYING_', '')}
             </span>
           </div>
 
@@ -229,8 +259,25 @@ export default function GameArena({
                       </span>
                     </div>
 
+                    {/* VOTE button on cards during Voting Phase */}
+                    {gameState === 'VOTING' && isAlive && !hasVoted && playerIsAlive && !playerIsLocal && (
+                      <button
+                        onClick={() => socket.emit('dayVote', { targetId: player.id })}
+                        className="retro-btn retro-btn-red px-2 py-1 text-[8px] font-bold uppercase tracking-wider self-center ml-auto cursor-pointer"
+                      >
+                        VOTE
+                      </button>
+                    )}
+
+                    {/* Voted tick label */}
+                    {gameState === 'VOTING' && roomState && roomState.dayVotes && roomState.dayVotes[localPlayerId] === player.id && (
+                      <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest ml-auto animate-pulse">
+                        VOTED
+                      </span>
+                    )}
+
                     {playerIsLocal && (
-                      <span className="text-[8px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded select-none self-start">
+                      <span className="text-[8px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded select-none self-start ml-auto">
                         YOU
                       </span>
                     )}
@@ -258,8 +305,8 @@ export default function GameArena({
                     You can spectate but cannot interact; dead players tell no tales.
                   </p>
                 </div>
-              ) : !isNight ? (
-                // Day Phase (All roles show discussion log)
+              ) : (gameState === 'DAY' || gameState === 'VOTING') ? (
+                // Day / Voting Phase (All roles show system logs)
                 <div className="flex flex-col gap-2 flex-1 min-h-0">
                   <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
                     SYSTEM ACTION LOG:
@@ -273,10 +320,10 @@ export default function GameArena({
                     <div ref={chatEndRef} />
                   </div>
                   <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-1 leading-normal">
-                    Discuss with other players and coordinate your votes.
+                    {gameState === 'VOTING' ? 'Select a player on the roster grid to cast your vote.' : 'Discuss with other players and coordinate your votes.'}
                   </p>
                 </div>
-              ) : role === 'MAFIA' ? (
+              ) : gameState === 'NIGHT_MAFIA' && role === 'MAFIA' ? (
                 // Night Phase - Mafia
                 <div className="flex flex-col gap-2 flex-1 min-h-0">
                   <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
@@ -285,7 +332,7 @@ export default function GameArena({
                   
                   {/* Mafia Private Chat */}
                   <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-red-500 overflow-y-auto max-h-[22vh]">
-                    {mafiaLogs.map((log) => (
+                    {mafiaChatLogs.map((log) => (
                       <p key={log.id} className="mb-1 leading-normal">
                         {log.text}
                       </p>
@@ -333,7 +380,7 @@ export default function GameArena({
                     </div>
                   </form>
                 </div>
-              ) : role === 'DOCTOR' ? (
+              ) : gameState === 'NIGHT_DOCTOR' && role === 'DOCTOR' ? (
                 // Night Phase - Doctor
                 <form onSubmit={handleActionSubmit} className="flex flex-col gap-3 flex-1 justify-center">
                   <span className="text-[9px] text-blue-300 uppercase tracking-wider font-bold">
@@ -350,7 +397,6 @@ export default function GameArena({
                       className="w-full bg-black border-2 border-gray-700 text-white text-[10px] px-2 py-2 outline-none font-mono"
                     >
                       <option value="">CHOOSE_PATIENT_</option>
-                      {/* Doctor can save anyone including themselves */}
                       {players
                         .filter((p) => p.isAlive !== false)
                         .map((p) => (
@@ -373,14 +419,14 @@ export default function GameArena({
                   </p>
                 </form>
               ) : (
-                // Night Phase - Civilian
+                // Sleeping overlay placeholder inside the Action Panel box
                 <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-gray-800 bg-gray-950/30 text-gray-400 gap-2 my-auto select-none">
                   <span className="text-3xl animate-pulse">💤</span>
                   <span className="text-[10px] font-bold tracking-widest uppercase">
-                    YOU ARE ASLEEP
+                    INACTIVE PHASE
                   </span>
                   <p className="text-[8px] text-gray-500 uppercase tracking-wider">
-                    Wait for the night phase to pass.
+                    Wait for active players to make their choices.
                   </p>
                 </div>
               )}

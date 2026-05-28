@@ -189,11 +189,16 @@ export default function WaitingRoom({
         {isHost ? (
           <motion.button
             onClick={handleStartGame}
-            animate={{ scale: [1, 1.05, 1] }}
+            disabled={roomState.players.length < 3}
+            animate={roomState.players.length >= 3 ? { scale: [1, 1.05, 1] } : {}}
             transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="w-full retro-btn retro-btn-red py-4 text-xs font-bold tracking-widest uppercase cursor-pointer"
+            className={`w-full retro-btn py-4 text-xs font-bold tracking-widest uppercase ${
+              roomState.players.length >= 3 
+                ? 'retro-btn-red cursor-pointer' 
+                : 'bg-gray-800 text-gray-500 border-gray-900 cursor-not-allowed shadow-none'
+            }`}
           >
-            START GAME
+            {roomState.players.length >= 3 ? 'START GAME' : 'NEED MORE PLAYERS'}
           </motion.button>
         ) : (
           <motion.div
