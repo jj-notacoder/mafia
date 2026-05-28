@@ -31,6 +31,14 @@ function App() {
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
   const audioRef = useRef(null);
 
+  // Keep Render backend awake on initial page load
+  useEffect(() => {
+    fetch('https://mafia-back.onrender.com/health')
+      .then((res) => res.text())
+      .then((data) => console.log('[HEALTH] Render server response:', data))
+      .catch((err) => console.warn('[HEALTH] Failed to ping Render server:', err));
+  }, []);
+
   // Audio state effect handler
   useEffect(() => {
     if (audioRef.current) {
@@ -63,6 +71,11 @@ function App() {
 
   // Global socket listener hooks
   useEffect(() => {
+    // Socket connection logger
+    socket.on('connect', () => {
+      console.log('[SOCKET] Connected to backend ID:', socket.id);
+    });
+
     // Room creation success
     socket.on('roomCreated', ({ roomCode, roomState }) => {
       console.log(`Room created: ${roomCode}`, roomState);
@@ -125,6 +138,7 @@ function App() {
     });
 
     return () => {
+      socket.off('connect');
       socket.off('roomCreated');
       socket.off('roomJoined');
       socket.off('roomStateUpdated', handleRoomStateUpdate);

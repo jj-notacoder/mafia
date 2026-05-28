@@ -62,15 +62,16 @@ export default function Lobby({
       alert('PLAYER NAME IS REQUIRED');
       return;
     }
-    if (!roomCode.trim() || roomCode.length < 4) {
+    const sanitizedCode = roomCode.toUpperCase().trim();
+    if (!sanitizedCode || sanitizedCode.length < 4) {
       alert('INVALID ROOM CODE');
       return;
     }
     const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
-    console.log('Action: EMIT joinRoom', { playerName, roomCode, playerId, avatarId: randomAvatar.id });
+    console.log('Action: EMIT joinRoom', { playerName, roomCode: sanitizedCode, playerId, avatarId: randomAvatar.id });
     socket.emit('joinRoom', {
       playerName: playerName.toUpperCase(),
-      roomCode: roomCode.toUpperCase(),
+      roomCode: sanitizedCode,
       playerId,
       avatarId: randomAvatar.id,
     });

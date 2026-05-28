@@ -18,6 +18,11 @@ app.get('/status', (req, res) => {
   res.json({ status: 'active', rooms: Object.keys(rooms).length });
 });
 
+// Express health check route for keeping Render awake
+app.get('/health', (req, res) => {
+  res.send('Awake');
+});
+
 // In-memory database of room objects
 const rooms = {};
 const roomIntervals = {};
@@ -484,6 +489,9 @@ io.on('connection', (socket) => {
       lynchRevealMessage: null,
     };
 
+    console.log('\n[CREATE] Room created:', roomCode);
+    console.log('[STATE] Active rooms in memory:', Object.keys(rooms));
+
     socket.join(roomCode);
     console.log(`Room created: ${roomCode} by host: ${playerName} (${socket.id})`);
     
@@ -496,6 +504,8 @@ io.on('connection', (socket) => {
 
   // Event: JOIN ROOM (Guest trigger)
   socket.on('joinRoom', (payload) => {
+    console.log('\n[JOIN] Attempting to join room:', payload ? payload.roomCode : undefined);
+    console.log('[STATE] Active rooms currently in memory:', Object.keys(rooms));
     console.log("JOIN ATTEMPT RECEIVED:", payload);
     if (!payload) {
       socket.emit('error', 'Invalid join request payload');
