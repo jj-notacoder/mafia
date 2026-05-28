@@ -28,6 +28,41 @@ const rooms = {};
 const roomIntervals = {};
 const roomTimerCallbacks = {};
 
+// Rate limiting Map for join attempts
+const joinAttemptsMap = new Map();
+
+function checkJoinRateLimit(socketId) {
+  const now = Date.now();
+  if (!joinAttemptsMap.has(socketId)) {
+    joinAttemptsMap.set(socketId, [now]);
+    return true;
+  }
+  
+  const attempts = joinAttemptsMap.get(socketId).filter(ts => now - ts < 10000);
+  attempts.push(now);
+  joinAttemptsMap.set(socketId, attempts);
+  
+  if (attempts.length > 5) {
+    return false;
+  }
+  return true;
+}
+
+// Lightweight HTML escape helper for XSS protection
+function escapeHTML(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(/[&<>"']/g, (m) => {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#039;';
+      default: return m;
+    }
+  });
+}
+
 // Helper to generate a unique 4-character room code
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -41,49 +76,42 @@ function generateRoomCode() {
   return code;
 }
 
-function sanitizeRoomStateForPlayer(room, socketId) {
-  const playerObj = room.players.find(p => p.socketId === socketId);
-  if (!playerObj) return room;
+function sanitizeRoomForClient(room, clientId) {
+  if (!room) return null;
+  // Deep clone
+  const clonedRoom = JSON.parse(JSON.stringify(room));
+  const isGameOver = clonedRoom.gameState === 'GAME_OVER_CIVILIANS' || clonedRoom.gameState === 'GAME_OVER_MAFIA';
 
-  const recipientRole = playerObj.role;
+  if (!isGameOver) {
+    const recipientPlayer = clonedRoom.players.find(p => p.id === clientId || p.socketId === clientId);
+    const recipientRole = recipientPlayer ? recipientPlayer.role : null;
 
-  // Mask roles of living players
-  const sanitizedPlayers = room.players.map(p => {
-    // Keep recipient's own role visible
-    if (p.socketId === socketId) {
+    clonedRoom.players = clonedRoom.players.map(p => {
+      // Keep recipient's own role visible
+      if (p.id === clientId || p.socketId === clientId) {
+        return p;
+      }
+      // If recipient is Mafia, keep other Mafia roles visible
+      if (recipientRole === 'MAFIA' && p.role === 'MAFIA') {
+        return p;
+      }
+      // Overwrite role property with null
+      p.role = null;
       return p;
-    }
-    // If recipient is Mafia, keep other Mafia roles visible
-    if (recipientRole === 'MAFIA' && p.role === 'MAFIA') {
-      return p;
-    }
-    // Mask role for all living players
-    if (p.isAlive) {
-      return {
-        ...p,
-        role: null
-      };
-    }
-    // Dead player roles can be revealed
-    return p;
-  });
+    });
 
-  const sanitizedRoom = {
-    ...room,
-    players: sanitizedPlayers
-  };
-
-  // Only reveal Mafia votes and vote status to Mafia
-  if (recipientRole !== 'MAFIA') {
-    sanitizedRoom.mafiaVotes = {};
-    sanitizedRoom.mafiaVoteStatus = null;
-  } else {
-    const aliveMafia = room.players.filter(p => p.role === 'MAFIA' && p.isAlive);
-    const votesCast = aliveMafia.filter(m => room.mafiaVotes[m.id] !== undefined).length;
-    sanitizedRoom.mafiaVoteStatus = `${votesCast}/${aliveMafia.length} votes cast`;
+    // Only reveal Mafia votes and vote status to Mafia
+    if (recipientRole !== 'MAFIA') {
+      clonedRoom.mafiaVotes = {};
+      clonedRoom.mafiaVoteStatus = null;
+    } else {
+      const aliveMafia = clonedRoom.players.filter(p => p.role === 'MAFIA' && p.isAlive);
+      const votesCast = aliveMafia.filter(m => clonedRoom.mafiaVotes[m.id] !== undefined).length;
+      clonedRoom.mafiaVoteStatus = `${votesCast}/${aliveMafia.length} votes cast`;
+    }
   }
 
-  return sanitizedRoom;
+  return clonedRoom;
 }
 
 function broadcastRoomState(roomCode) {
@@ -94,7 +122,7 @@ function broadcastRoomState(roomCode) {
   if (!roomSockets) return;
 
   for (const socketId of roomSockets) {
-    const sanitized = sanitizeRoomStateForPlayer(room, socketId);
+    const sanitized = sanitizeRoomForClient(room, socketId);
     io.to(socketId).emit('roomStateUpdated', sanitized);
     io.to(socketId).emit('gameStateUpdated', sanitized);
   }
@@ -498,12 +526,16 @@ io.on('connection', (socket) => {
     // Send sanitized configuration back to host
     socket.emit('roomCreated', {
       roomCode,
-      roomState: sanitizeRoomStateForPlayer(rooms[roomCode], socket.id)
+      roomState: sanitizeRoomForClient(rooms[roomCode], socket.id)
     });
   });
 
   // Event: JOIN ROOM (Guest trigger)
   socket.on('joinRoom', (payload) => {
+    if (!checkJoinRateLimit(socket.id)) {
+      socket.emit('error', 'Rate limit exceeded; please wait.');
+      return;
+    }
     console.log('\n[JOIN] Attempting to join room:', payload ? payload.roomCode : undefined);
     console.log('[STATE] Active rooms currently in memory:', Object.keys(rooms));
     console.log("JOIN ATTEMPT RECEIVED:", payload);
@@ -537,14 +569,13 @@ io.on('connection', (socket) => {
       socket.join(code);
       console.log(`Player ${existingPlayer.name} reconnected. New socket: ${socket.id}`);
 
-      // Broadcast state update immediately to all connected clients in the room
-      io.to(code).emit('gameStateUpdated', room);
+      // Broadcast state update immediately to all connected clients in the room (sanitized)
       broadcastRoomState(code);
 
       // Explicitly send success payload back to guest
       socket.emit('roomJoined', {
         roomCode: code,
-        roomState: sanitizeRoomStateForPlayer(room, socket.id)
+        roomState: sanitizeRoomForClient(room, socket.id)
       });
       return;
     }
@@ -578,14 +609,13 @@ io.on('connection', (socket) => {
 
     console.log(`Player ${playerName} (${socket.id}) joined room: ${code}`);
 
-    // Broadcast state update immediately to all connected clients in the room
-    io.to(code).emit('gameStateUpdated', room);
+    // Broadcast state update immediately to all connected clients in the room (sanitized)
     broadcastRoomState(code);
     
     // Explicitly send success payload back to guest to transition screen
     socket.emit('roomJoined', {
       roomCode: code,
-      roomState: sanitizeRoomStateForPlayer(room, socket.id)
+      roomState: sanitizeRoomForClient(room, socket.id)
     });
   });
 
@@ -596,7 +626,7 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoomCode];
     // Enforce that only the host can update room settings
     if (room.hostId !== socket.id) {
-      socket.emit('error', 'Only the room host can change rules');
+      socket.emit('error', 'Unauthorized action detected.');
       return;
     }
 
@@ -617,6 +647,11 @@ io.on('connection', (socket) => {
     const code = roomCode || currentRoomCode;
     const room = rooms[code];
     if (!room) return;
+
+    if (room.hostId !== socket.id) {
+      socket.emit('error', 'Unauthorized action detected.');
+      return;
+    }
 
     const numPlayers = room.players.length;
 
@@ -733,7 +768,8 @@ io.on('connection', (socket) => {
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player || !player.isAlive) return;
 
-    const msgObj = { id: Date.now().toString(), text: `${player.name}: ${msg}`, senderId: player.id };
+    const sanitizedMsg = escapeHTML(msg);
+    const msgObj = { id: Date.now().toString(), text: `${player.name}: ${sanitizedMsg}`, senderId: player.id };
     if (!room.dayChatLogs) {
       room.dayChatLogs = [];
     }
@@ -827,8 +863,7 @@ io.on('connection', (socket) => {
     player.avatarId = avatarId;
     console.log(`Player ${player.name} selected avatar: ${avatarId}`);
 
-    // Broadcast state update immediately to all clients in the room
-    io.to(code).emit('gameStateUpdated', room);
+    // Broadcast state update immediately to all clients in the room (sanitized)
     broadcastRoomState(code);
   });
 
@@ -839,7 +874,7 @@ io.on('connection', (socket) => {
 
     // Security Check: Verify host
     if (room.hostId !== socket.id) {
-      socket.emit('error', 'Only the host can kick players');
+      socket.emit('error', 'Unauthorized action detected.');
       return;
     }
 
@@ -984,6 +1019,7 @@ io.on('connection', (socket) => {
   // Event: DISCONNECT (Cleanup logic)
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
+    joinAttemptsMap.delete(socket.id);
     
     if (currentRoomCode && rooms[currentRoomCode]) {
       const room = rooms[currentRoomCode];
