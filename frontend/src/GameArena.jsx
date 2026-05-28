@@ -492,7 +492,7 @@ export default function GameArena({
                     )}
 
                     {/* Live Target Progress Bar during Mafia Night Voting */}
-                    {gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && playerIsAlive && player.role !== 'MAFIA' && (
+                    {gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && isAlive && playerIsAlive && player.role !== 'MAFIA' && (
                       <div className="w-full mt-1 text-left">
                         <div className="flex justify-between text-[7px] text-red-500 font-mono mb-0.5">
                           <span>TARGETED</span>
@@ -519,19 +519,19 @@ export default function GameArena({
                 ACTION PANEL
               </h3>
 
-              {!isAlive ? (
-                // Dead Player Screen
-                <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-red-950 bg-red-950/10 text-red-500 gap-2 my-auto">
-                  <span className="text-3xl">☠</span>
+              {!isAlive && (gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR') ? (
+                // Night Phase overlay for dead players (Ghosts)
+                <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-gray-800 bg-black text-gray-400 gap-2 my-auto select-none">
+                  <span className="text-3xl animate-pulse">🌙</span>
                   <span className="text-[10px] font-bold tracking-widest uppercase">
-                    YOU ARE ELIMINATED
+                    THE TOWN IS ASLEEP...
                   </span>
-                  <p className="text-[8px] text-gray-500 uppercase tracking-wider">
-                    You can spectate but cannot interact; dead players tell no tales.
+                  <p className="text-[9px] text-yellow-500 font-bold uppercase tracking-wider mt-1">
+                    TIME REMAINING: {roomState ? roomState.timer : 0}S
                   </p>
                 </div>
-             ) : gameState === 'DAY' ? (
-                // Day Phase chat debate
+              ) : gameState === 'DAY' ? (
+                // Day Phase chat debate (shared by alive players and ghosts)
                 <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
                   <div className="flex flex-col gap-2 flex-1 min-h-0">
                     <span className="text-[9px] text-yellow-400 uppercase tracking-wider font-bold">
@@ -547,7 +547,7 @@ export default function GameArena({
                     </div>
                   </div>
 
-                  {isAlive && (
+                  {isAlive ? (
                     <form onSubmit={handleSendDayMsg} className="flex gap-2">
                       <input
                         type="text"
@@ -560,14 +560,18 @@ export default function GameArena({
                         SEND
                       </button>
                     </form>
+                  ) : (
+                    <div className="bg-gray-950 border border-gray-800 text-gray-500 text-[9px] font-mono py-2 text-center select-none uppercase tracking-widest">
+                      GHOSTS CANNOT SPEAK
+                    </div>
                   )}
 
                   <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-2 leading-normal">
                     Debate with other players and find the Mafia.
                   </p>
                 </div>
-             ) : gameState === 'VOTING' ? (
-                // Voting Phase action logs
+              ) : gameState === 'VOTING' ? (
+                // Voting Phase action logs (shared by alive and ghosts)
                 <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
                   <div className="flex flex-col gap-2 flex-1 min-h-0">
                     <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
@@ -583,7 +587,7 @@ export default function GameArena({
                     </div>
                   </div>
 
-                  {/* Voting skip button for alive players */}
+                  {/* Voting skip button for alive players only */}
                   {isAlive && roomState?.dayVotes?.[localPlayerId] !== 'SKIP' && (
                     <button
                       onClick={() => socket.emit('updateVote', { targetId: 'SKIP' })}
@@ -594,7 +598,7 @@ export default function GameArena({
                   )}
 
                   {/* Voted Skip label */}
-                  {roomState?.dayVotes?.[localPlayerId] === 'SKIP' && (
+                  {isAlive && roomState?.dayVotes?.[localPlayerId] === 'SKIP' && (
                     <div className="flex flex-col items-center mt-2">
                       <span className="text-[9px] text-green-500 font-bold uppercase tracking-widest text-center animate-pulse">
                         YOU VOTED TO SKIP
@@ -606,8 +610,8 @@ export default function GameArena({
                     Select a player on the roster grid or click Skip to cast your vote.
                   </p>
                 </div>
-              ) : gameState === 'NIGHT_MAFIA' && role === 'MAFIA' ? (
-                // Night Phase - Mafia
+              ) : gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && isAlive ? (
+                // Night Phase - Mafia (only visible to living Mafia)
                 <div className="flex flex-col gap-2 flex-1 min-h-0">
                   <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
                     MAFIA BOARD (NIGHT CHAT) {roomState?.mafiaVoteStatus ? `[${roomState.mafiaVoteStatus}]` : ''}:
@@ -663,8 +667,8 @@ export default function GameArena({
                     </div>
                   </form>
                 </div>
-              ) : gameState === 'NIGHT_DOCTOR' && role === 'DOCTOR' ? (
-                // Night Phase - Doctor
+              ) : gameState === 'NIGHT_DOCTOR' && role === 'DOCTOR' && isAlive ? (
+                // Night Phase - Doctor (only visible to living Doctor)
                 <form onSubmit={handleActionSubmit} className="flex flex-col gap-3 flex-1 justify-center">
                   <span className="text-[9px] text-blue-300 uppercase tracking-wider font-bold">
                     DOCTOR WARD (NIGHT ACTION):
@@ -702,7 +706,7 @@ export default function GameArena({
                   </p>
                 </form>
               ) : (
-                // Sleeping overlay placeholder inside the Action Panel box
+                // Sleeping overlay placeholder inside the Action Panel box for other inactive roles / spectator night states
                 <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-gray-800 bg-gray-950/30 text-gray-400 gap-2 my-auto select-none">
                   <span className="text-3xl animate-pulse">💤</span>
                   <span className="text-[10px] font-bold tracking-widest uppercase">
@@ -719,59 +723,82 @@ export default function GameArena({
         </div>
 
         {/* Game Over Screen Overlay */}
-        {(gameState === 'GAME_OVER_CIVILIANS' || gameState === 'GAME_OVER_MAFIA') && (
-          <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center select-none">
-            {/* CRT overlay elements */}
-            <div className="crt-scanlines crt-flicker"></div>
-            <div className="crt-light-roll"></div>
-            <div className="crt-vignette"></div>
+        {(gameState === 'GAME_OVER_CIVILIANS' || gameState === 'GAME_OVER_MAFIA') && (() => {
+          const mafiaPlayers = players.filter(p => p.role === 'MAFIA');
+          const mafiaNames = mafiaPlayers.map(p => p.name);
+          let mafiaNamesString = '';
+          if (mafiaNames.length === 1) {
+            mafiaNamesString = mafiaNames[0];
+          } else if (mafiaNames.length === 2) {
+            mafiaNamesString = mafiaNames.join(' and ');
+          } else if (mafiaNames.length > 2) {
+            mafiaNamesString = mafiaNames.slice(0, -1).join(', ') + ', and ' + mafiaNames[mafiaNames.length - 1];
+          }
 
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="max-w-md w-full border-4 border-gray-700 pixel-container bg-black p-8 flex flex-col gap-6"
-            >
-              <h2 className="text-gray-500 text-[10px] uppercase tracking-[0.3em] font-mono">
-                GAME OVER
-              </h2>
+          return (
+            <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center select-none">
+              {/* CRT overlay elements */}
+              <div className="crt-scanlines crt-flicker"></div>
+              <div className="crt-light-roll"></div>
+              <div className="crt-vignette"></div>
 
-              {gameState === 'GAME_OVER_CIVILIANS' ? (
-                <h1 className="text-blue-300 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-bounce">
-                  YAY, CIVILIANS WON!
-                </h1>
-              ) : (
-                <h1 className="text-red-600 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-pulse">
-                  THE MAFIA HAS TAKEN OVER!
-                </h1>
-              )}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="max-w-md w-full border-4 border-gray-700 pixel-container bg-black p-8 flex flex-col gap-6"
+              >
+                <h2 className="text-gray-500 text-[10px] uppercase tracking-[0.3em] font-mono">
+                  GAME OVER
+                </h2>
 
-              <div className="flex flex-col gap-4 mt-4">
-                <button
-                  onClick={() => {
-                    if (onTransitionToWaitingRoom) {
-                      onTransitionToWaitingRoom();
-                    }
-                    socket.emit('playAgain');
-                  }}
-                  className="retro-btn retro-btn-red py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
-                >
-                  PLAY AGAIN WITH SAME CODE
-                </button>
+                {gameState === 'GAME_OVER_CIVILIANS' ? (
+                  <div className="flex flex-col gap-2">
+                    <h1 className="text-blue-300 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-bounce leading-normal">
+                      YAY, CIVILIANS WON!
+                    </h1>
+                    <p className="text-[10px] md:text-xs text-blue-200/80 uppercase tracking-widest leading-normal">
+                      Good job, you found out that {mafiaNamesString} were the Mafias.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <h1 className="text-red-600 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-pulse leading-normal">
+                      THE MAFIA HAS TAKEN OVER!
+                    </h1>
+                    <p className="text-[10px] md:text-xs text-red-500/80 uppercase tracking-widest leading-normal">
+                      {mafiaNamesString} were the Mafias.
+                    </p>
+                  </div>
+                )}
 
-                <button
-                  onClick={() => {
-                    socket.disconnect();
-                    window.location.reload();
-                  }}
-                  className="retro-btn retro-btn-white py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
-                >
-                  RETURN TO HOMEPAGE
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+                <div className="flex flex-col gap-4 mt-4">
+                  <button
+                    onClick={() => {
+                      if (onTransitionToWaitingRoom) {
+                        onTransitionToWaitingRoom();
+                      }
+                      socket.emit('playAgain');
+                    }}
+                    className="retro-btn retro-btn-red py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
+                  >
+                    PLAY AGAIN WITH SAME CODE
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      socket.disconnect();
+                      window.location.reload();
+                    }}
+                    className="retro-btn retro-btn-white py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
+                  >
+                    RETURN TO HOMEPAGE
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
 
       </div>
     </div>

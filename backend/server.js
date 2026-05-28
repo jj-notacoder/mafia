@@ -78,37 +78,40 @@ function generateRoomCode() {
 
 function sanitizeRoomForClient(room, clientId) {
   if (!room) return null;
+
+  // If the game is in an over state, return the room object with all roles exposed
+  const isGameOver = room.gameState === 'GAME_OVER_CIVILIANS' || room.gameState === 'GAME_OVER_MAFIA';
+  if (isGameOver) {
+    return room;
+  }
+
   // Deep clone
   const clonedRoom = JSON.parse(JSON.stringify(room));
-  const isGameOver = clonedRoom.gameState === 'GAME_OVER_CIVILIANS' || clonedRoom.gameState === 'GAME_OVER_MAFIA';
+  const recipientPlayer = clonedRoom.players.find(p => p.id === clientId || p.socketId === clientId);
+  const recipientRole = recipientPlayer ? recipientPlayer.role : null;
 
-  if (!isGameOver) {
-    const recipientPlayer = clonedRoom.players.find(p => p.id === clientId || p.socketId === clientId);
-    const recipientRole = recipientPlayer ? recipientPlayer.role : null;
-
-    clonedRoom.players = clonedRoom.players.map(p => {
-      // Keep recipient's own role visible
-      if (p.id === clientId || p.socketId === clientId) {
-        return p;
-      }
-      // If recipient is Mafia, keep other Mafia roles visible
-      if (recipientRole === 'MAFIA' && p.role === 'MAFIA') {
-        return p;
-      }
-      // Overwrite role property with null
-      p.role = null;
+  clonedRoom.players = clonedRoom.players.map(p => {
+    // Keep recipient's own role visible
+    if (p.id === clientId || p.socketId === clientId) {
       return p;
-    });
-
-    // Only reveal Mafia votes and vote status to Mafia
-    if (recipientRole !== 'MAFIA') {
-      clonedRoom.mafiaVotes = {};
-      clonedRoom.mafiaVoteStatus = null;
-    } else {
-      const aliveMafia = clonedRoom.players.filter(p => p.role === 'MAFIA' && p.isAlive);
-      const votesCast = aliveMafia.filter(m => clonedRoom.mafiaVotes[m.id] !== undefined).length;
-      clonedRoom.mafiaVoteStatus = `${votesCast}/${aliveMafia.length} votes cast`;
     }
+    // If recipient is Mafia, keep other Mafia roles visible
+    if (recipientRole === 'MAFIA' && p.role === 'MAFIA') {
+      return p;
+    }
+    // Overwrite role property with null
+    p.role = null;
+    return p;
+  });
+
+  // Only reveal Mafia votes and vote status to Mafia
+  if (recipientRole !== 'MAFIA') {
+    clonedRoom.mafiaVotes = {};
+    clonedRoom.mafiaVoteStatus = null;
+  } else {
+    const aliveMafia = clonedRoom.players.filter(p => p.role === 'MAFIA' && p.isAlive);
+    const votesCast = aliveMafia.filter(m => clonedRoom.mafiaVotes[m.id] !== undefined).length;
+    clonedRoom.mafiaVoteStatus = `${votesCast}/${aliveMafia.length} votes cast`;
   }
 
   return clonedRoom;
