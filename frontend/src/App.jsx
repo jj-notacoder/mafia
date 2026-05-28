@@ -15,47 +15,22 @@ function App() {
   const [isJoining, setIsJoining] = useState(false);
   const [roomState, setRoomState] = useState(null);
   
-  // Media states
-  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
+  // Media states (defaulting to false)
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const audioRef = useRef(null);
 
-  // Audio persistence lifecycle - instantiated once at the root level
+  // Audio state effect handler
   useEffect(() => {
-    const audio = new Audio('desktop/mafia/bgmusic1.mp3');
-    audio.loop = true;
-    audio.volume = 0.25;
-    audioRef.current = audio;
-
-    // Try to play immediately (browser autoplay policy may block it until interaction)
-    audio.play().catch((err) => {
-      console.warn('Initial autoplay blocked by browser policy. Will play on first user interaction:', err);
-    });
-
-    // Interaction fallback: play on first click anywhere on page (except sound button)
-    const handleFirstClick = (e) => {
-      if (e.target && e.target.closest('.classic-win95-btn')) {
-        document.removeEventListener('click', handleFirstClick);
-        return;
-      }
-      
-      if (audioRef.current && audioRef.current.paused && isAudioPlaying) {
+    if (audioRef.current) {
+      if (isAudioPlaying) {
         audioRef.current.play().catch((err) => {
-          console.warn('Playback failed on interaction gesture:', err);
+          console.warn('Playback prevented by browser policy until user interaction:', err);
         });
-      }
-      document.removeEventListener('click', handleFirstClick);
-    };
-
-    document.addEventListener('click', handleFirstClick);
-
-    return () => {
-      if (audioRef.current) {
+      } else {
         audioRef.current.pause();
       }
-      audioRef.current = null;
-      document.removeEventListener('click', handleFirstClick);
-    };
-  }, []);
+    }
+  }, [isAudioPlaying]);
 
   // Global socket listener hooks
   useEffect(() => {
@@ -93,6 +68,7 @@ function App() {
     socket.on('gameStarted', () => {
       console.log('Game is starting...');
       alert('GAME IS STARTING NOW! Trust no one...');
+      setIsAudioPlaying(false); // Cut music when game starts
       // TODO: Transition to gameplay screen here (e.g. setScreen('GAME'))
     });
 
@@ -111,24 +87,9 @@ function App() {
     };
   }, []);
 
-  // Audio utility control functions passed to children
+  // Sound toggle helper
   const toggleSound = () => {
-    if (!audioRef.current) return;
-    if (isAudioPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch((err) => {
-        console.warn('Audio playback blocked on user click:', err);
-      });
-    }
-    setIsAudioPlaying(!isAudioPlaying);
-  };
-
-  const stopMusic = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsAudioPlaying(false);
+    setIsAudioPlaying((prev) => !prev);
   };
 
   return (
@@ -285,6 +246,13 @@ function App() {
       <div className="crt-light-roll"></div>
       <div className="crt-vignette"></div>
 
+      {/* Audio Element for Background Music */}
+      <audio
+        ref={audioRef}
+        src="desktop/mafia/bgmusic1.mp3"
+        loop
+      />
+
       {/* Atmospheric dark cinematic video background (Persistent and will not reset) */}
       <video
         src="desktop/mafia/backgroundvideo.mp4"
@@ -298,6 +266,15 @@ function App() {
       {/* Hard black transparent layer */}
       <div className="absolute inset-0 bg-black/60 z-1 pointer-events-none"></div>
 
+      {/* Global Sound Control Button */}
+      <button
+        onClick={toggleSound}
+        className="fixed bottom-4 left-4 z-50 classic-win95-btn px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font"
+      >
+        <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
+        SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
+      </button>
+
       {/* Conditional Screen Rendering Engine */}
       <div className="relative z-10 w-full h-full">
         {screen === 'LOBBY' ? (
@@ -309,17 +286,13 @@ function App() {
             setRoomCode={setRoomCode}
             isJoining={isJoining}
             setIsJoining={setIsJoining}
-            isAudioPlaying={isAudioPlaying}
-            toggleSound={toggleSound}
           />
         ) : (
           <WaitingRoom
             socket={socket}
             roomCode={roomCode}
             roomState={roomState}
-            isAudioPlaying={isAudioPlaying}
-            toggleSound={toggleSound}
-            stopMusic={stopMusic}
+            setAudioPlaying={setIsAudioPlaying}
           />
         )}
       </div>

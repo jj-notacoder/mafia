@@ -9,8 +9,6 @@ export default function Lobby({
   setRoomCode,
   isJoining,
   setIsJoining,
-  isAudioPlaying,
-  toggleSound,
 }) {
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -210,16 +208,8 @@ export default function Lobby({
         variants={utilityVariants}
         initial="hidden"
         animate="visible"
-        className="flex justify-between items-center w-full px-2"
+        className="flex justify-end items-center w-full px-2"
       >
-        <button
-          onClick={toggleSound}
-          className="classic-win95-btn px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2"
-        >
-          <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
-          SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
-        </button>
-
         <span className="text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest">
           v1.0.0 - Trust No One
         </span>
