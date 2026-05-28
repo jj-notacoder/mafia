@@ -3,8 +3,11 @@ import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 
-// Connect to Node.js backend using env variable or fallback
-const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+const BACKEND_URL = import.meta.env.MODE === 'production' 
+  ? 'https://mafia-1-mtgl.onrender.com' 
+  : 'http://localhost:3001';
+
+const socket = io(BACKEND_URL, {
   autoConnect: true,
 });
 
