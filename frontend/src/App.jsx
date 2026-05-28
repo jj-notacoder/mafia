@@ -3,8 +3,8 @@ import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 
-// Connect to Node.js backend on port 3001
-const socket = io('http://localhost:3001', {
+// Connect to Node.js backend using env variable or fallback
+const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
   autoConnect: true,
 });
 
