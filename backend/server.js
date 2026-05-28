@@ -495,7 +495,13 @@ io.on('connection', (socket) => {
   });
 
   // Event: JOIN ROOM (Guest trigger)
-  socket.on('joinRoom', ({ playerName, roomCode, playerId, avatarId }) => {
+  socket.on('joinRoom', (payload) => {
+    console.log("JOIN ATTEMPT RECEIVED:", payload);
+    if (!payload) {
+      socket.emit('error', 'Invalid join request payload');
+      return;
+    }
+    const { playerName, roomCode, playerId, avatarId } = payload;
     const code = roomCode ? roomCode.toUpperCase().trim() : '';
     if (!code || !rooms[code]) {
       socket.emit('error', 'Incorrect code pls check it');
