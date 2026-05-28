@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
+import GameArena from './GameArena';
 
 const socket = io('http://localhost:3001', {
   autoConnect: true,
@@ -84,9 +85,8 @@ function App() {
     // Game starts trigger
     socket.on('gameStarted', () => {
       console.log('Game is starting...');
-      alert('GAME IS STARTING NOW! Trust no one...');
       setIsAudioPlaying(false); // Cut music when game starts
-      // TODO: Transition to gameplay screen here (e.g. setScreen('GAME'))
+      setScreen('GAME'); // Transition to gameplay arena
     });
 
     // Handle generic server errors silently in global app context (Lobby will handle displaying them)
@@ -310,12 +310,19 @@ function App() {
             isJoining={isJoining}
             setIsJoining={setIsJoining}
           />
-        ) : (
+        ) : screen === 'WAITING_ROOM' ? (
           <WaitingRoom
             socket={socket}
             roomCode={roomCode}
             roomState={roomState}
             setAudioPlaying={setIsAudioPlaying}
+          />
+        ) : (
+          <GameArena
+            gameState={roomState ? roomState.gameState : 'PLAYING'}
+            players={roomState ? roomState.players : []}
+            localPlayerId={socket.id}
+            socket={socket}
           />
         )}
       </div>

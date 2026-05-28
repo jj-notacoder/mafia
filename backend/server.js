@@ -161,9 +161,39 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const players = room.players;
+    const numPlayers = players.length;
+
+    // Shuffle players to assign roles randomly
+    const shuffled = [...players];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Assign roles: 1 Mafia, 1 Doctor (if >= 3 players), rest Civilians
+    shuffled.forEach((player, idx) => {
+      let role = 'CIVILIAN';
+      if (idx === 0) {
+        role = 'MAFIA';
+      } else if (idx === 1 && numPlayers >= 3) {
+        role = 'DOCTOR';
+      }
+      
+      const originalPlayer = room.players.find((p) => p.id === player.id);
+      if (originalPlayer) {
+        originalPlayer.role = role;
+        originalPlayer.isAlive = true;
+      }
+    });
+
     room.gameState = 'PLAYING';
     console.log(`Room ${currentRoomCode} game starting...`);
     
+    // Broadcast updated state with player roles first
+    io.to(currentRoomCode).emit('roomStateUpdated', room);
+    io.to(currentRoomCode).emit('gameStateUpdated', room);
+
     // Emit match start triggers
     io.to(currentRoomCode).emit('gameStarted');
   });
