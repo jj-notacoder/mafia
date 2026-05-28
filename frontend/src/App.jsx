@@ -4,7 +4,7 @@ import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 import GameArena from './GameArena';
 
-const socket = io('http://localhost:3001', {
+const socket = io('https://mafia-back.onrender.com', {
   autoConnect: true,
 });
 
