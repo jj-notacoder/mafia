@@ -3,11 +3,10 @@ import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 
-const BACKEND_URL = import.meta.env.MODE === 'production' 
-  ? 'https://mafia-1-mtgl.onrender.com' 
-  : 'http://localhost:3001';
-
-const socket = io(BACKEND_URL, {
+// Temporarily hardcode your live Render URL to guarantee it connects.
+// Make sure you replace this string with your ACTUAL Render URL!
+// DO NOT put a slash (/) at the very end of the URL.
+const socket = io('https://mafia-1-mtgl.onrender.com', {
   autoConnect: true,
 });
 
