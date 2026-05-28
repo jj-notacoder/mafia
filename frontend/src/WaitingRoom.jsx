@@ -1,16 +1,22 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { AVATARS } from './avatars';
+
+const availableAvatars = AVATARS;
 
 export default function WaitingRoom({
   socket,
   roomCode,
   roomState,
   setAudioPlaying,
+  playerId,
 }) {
+
   if (!roomState) return null;
 
   // Determine if the current client is the host of this lobby
-  const isHost = socket.id === roomState.hostId;
+  const localPlayer = roomState.players.find(p => p.id === playerId);
+  const isHost = localPlayer?.isHost;
 
   // Handle rule adjustments and emit changes back to the backend
   const handleSettingChange = (settingName, value) => {
@@ -24,12 +30,12 @@ export default function WaitingRoom({
   // Start the game and pause the background loop
   const handleStartGame = () => {
     console.log('Action: EMIT startGame');
-    socket.emit('startGame');
+    socket.emit('startGame', roomCode);
     setAudioPlaying(false); // Stop music when the game begins
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-between max-h-[90vh] px-4 py-6 overflow-y-auto">
+    <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-between px-4 py-6 relative">
       
       {/* Top Header section */}
       <div className="flex flex-col items-center justify-center text-center mt-2">
@@ -44,12 +50,11 @@ export default function WaitingRoom({
         </h2>
       </div>
 
-      {/* Main Content Columns */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="flex flex-col md:flex-row gap-6 w-full max-w-4xl mt-6 mb-6"
+        className="flex flex-col md:flex-row gap-6 w-full max-w-6xl mt-6 mb-6"
       >
         
         {/* Left Column: Player List */}
@@ -65,36 +70,134 @@ export default function WaitingRoom({
 
           <ul className="flex-1 flex flex-col gap-3 min-h-[150px] overflow-y-auto pr-1">
             {roomState.players.map((player) => {
-              const isCurrentPlayer = player.id === socket.id;
-              const playerIsHost = player.id === roomState.hostId;
+              const isCurrentPlayer = player.id === playerId;
+              const playerIsHost = player.isHost;
+              const isDisconnected = player.connected === false;
               
               return (
                 <li
                   key={player.id}
                   className={`flex items-center justify-between p-3 border-2 ${
                     isCurrentPlayer ? 'border-red-600 bg-red-950/30' : 'border-gray-800 bg-black/60'
-                  }`}
+                  } ${isDisconnected ? 'opacity-50' : ''}`}
                 >
                   <div className="flex items-center gap-2 text-xs md:text-sm tracking-wider uppercase truncate">
                     {isCurrentPlayer && <span className="text-red-500 animate-pulse">&gt;</span>}
+                    {(() => {
+                      const playerAvatar = availableAvatars.find(a => a.id === player.avatarId);
+                      if (playerAvatar) {
+                        return (
+                          <img 
+                            src={playerAvatar.src} 
+                            alt={playerAvatar.name} 
+                            className="w-8 h-8 object-contain border border-gray-700 bg-black/40 flex-shrink-0"
+                          />
+                        );
+                      }
+                      return (
+                        <div className="w-8 h-8 border border-gray-850 bg-black/40 flex items-center justify-center text-[7px] text-gray-500 flex-shrink-0">
+                          NO PIC
+                        </div>
+                      );
+                    })()}
                     <span className={isCurrentPlayer ? 'text-red-500 font-bold' : 'text-white'}>
-                      {player.name}
+                      {player.name} {isDisconnected ? '(AWAY)' : ''}
                     </span>
                   </div>
                   
-                  {playerIsHost ? (
-                    <span className="text-[8px] md:text-[9px] bg-amber-500 text-black font-black px-2 py-0.5 flex items-center gap-1 select-none">
-                      👑 HOST
-                    </span>
-                  ) : (
-                    <span className="text-[7px] md:text-[8px] text-gray-500 uppercase tracking-widest">
-                      READY
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {playerIsHost ? (
+                      <span className="text-[8px] md:text-[9px] bg-amber-500 text-black font-black px-2 py-0.5 flex items-center gap-1 select-none">
+                        👑 HOST
+                      </span>
+                    ) : (
+                      <>
+                        {isHost && (
+                          <div className="flex gap-2">
+                            {!isDisconnected && (
+                              <button
+                                onClick={() => socket.emit('transferHost', { targetId: player.id })}
+                                className="retro-btn retro-btn-white px-2 py-1 text-[7px] font-black uppercase tracking-wider cursor-pointer"
+                              >
+                                MAKE HOST
+                              </button>
+                            )}
+                            <button
+                              onClick={() => socket.emit('kickPlayer', { targetPlayerId: player.id })}
+                              className="retro-btn retro-btn-red px-2 py-1 text-[7px] font-black uppercase tracking-wider cursor-pointer"
+                            >
+                              KICK
+                            </button>
+                          </div>
+                        )}
+                        <span className="text-[7px] md:text-[8px] text-gray-500 uppercase tracking-widest">
+                          {isDisconnected ? 'AWAY' : 'READY'}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </li>
               );
             })}
           </ul>
+        </div>
+
+        {/* Middle Column: Avatar Selection */}
+        <div className="flex-[1.5] p-5 bg-black/85 backdrop-blur-[2px] pixel-container flex flex-col gap-4 min-h-[300px]">
+          <div className="border-b border-white pb-3">
+            <span className="text-[10px] md:text-xs text-gray-400 tracking-widest uppercase">
+              SELECT YOUR AVATAR:
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto max-h-[350px] pr-1">
+            {availableAvatars.map((avatar) => {
+              const claimedByPlayer = roomState.players.find(p => p.avatarId === avatar.id);
+              const isClaimedBySelf = claimedByPlayer?.id === playerId;
+              const isClaimedByOther = claimedByPlayer && claimedByPlayer.id !== playerId;
+
+              return (
+                <div
+                  key={avatar.id}
+                  onClick={() => {
+                    if (!isClaimedByOther) {
+                      socket.emit('selectAvatar', { 
+                        roomCode, 
+                        roomId: roomCode, 
+                        playerId, 
+                        newAvatarId: avatar.id,
+                        avatarId: avatar.id 
+                      });
+                    }
+                  }}
+                  className={`relative border-2 p-1.5 flex flex-col items-center justify-center gap-1 transition-all ${
+                    isClaimedBySelf ? 'ring-4 ring-green-500 border-green-500 bg-green-950/20' : 
+                    isClaimedByOther ? 'grayscale opacity-50 cursor-not-allowed bg-black/80 border-red-950' : 
+                    'border-gray-800 bg-black/60 cursor-pointer hover:border-yellow-500'
+                  }`}
+                >
+                  <img
+                    src={avatar.src}
+                    alt={avatar.name}
+                    className={`w-12 h-12 object-contain ${isClaimedByOther ? 'grayscale' : ''}`}
+                  />
+                  <span className="text-[7px] text-gray-400 text-center font-mono truncate w-full" title={avatar.name}>
+                    {avatar.name}
+                  </span>
+                  {isClaimedBySelf && (
+                    <div className="absolute top-0 right-0 bg-green-600 text-white text-[5px] px-1 font-bold">
+                      YOU
+                    </div>
+                  )}
+                  {isClaimedByOther && (
+                    <div className="absolute top-0 right-0 bg-red-800 text-white text-[5px] px-1 font-bold truncate max-w-full">
+                      {claimedByPlayer.name}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right Column: Game Settings */}

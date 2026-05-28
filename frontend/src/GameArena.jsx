@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AVATARS } from './avatars';
+
+const availableAvatars = AVATARS;
 
 export default function GameArena({
   socket,
   localPlayerId,
   roomState,
+  playerId,
+  onTransitionToWaitingRoom,
 }) {
   const [isRevealing, setIsRevealing] = useState(true);
   const [targetPlayer, setTargetPlayer] = useState('');
   const [mafiaChatMsg, setMafiaChatMsg] = useState('');
+  const [dayChatMsg, setDayChatMsg] = useState('');
+  const [showHostControls, setShowHostControls] = useState(false);
   
   // Extract values from roomState
   const gameState = roomState ? roomState.gameState : 'LOBBY';
@@ -23,7 +30,7 @@ export default function GameArena({
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [mafiaChatLogs, systemLogs]);
+  }, [mafiaChatLogs, systemLogs, roomState?.dayChatLogs]);
 
   // Role reveal timer - exactly 4 seconds
   useEffect(() => {
@@ -33,11 +40,14 @@ export default function GameArena({
     return () => clearTimeout(timer);
   }, []);
 
+  // Morning banner effect handled globally by server gameState changes
+
   // Retrieve local player details
   const localPlayer = players.find((p) => p.id === localPlayerId) || {
     name: 'UNKNOWN',
     role: 'CIVILIAN',
     isAlive: true,
+    isHost: false,
   };
 
   const role = localPlayer.role || 'CIVILIAN';
@@ -127,15 +137,152 @@ export default function GameArena({
     setTargetPlayer('');
   };
 
-  // Check if player voted during Voting phase
-  const hasVoted = roomState && roomState.dayVotes && roomState.dayVotes[localPlayerId] !== undefined;
+  const handleSendDayMsg = (e) => {
+    e.preventDefault();
+    if (!dayChatMsg.trim()) return;
+    socket.emit('sendDayMessage', { msg: dayChatMsg });
+    setDayChatMsg('');
+  };
+
+  // Vote checking helper variables
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-4">
-      {/* Pinned Countdown Timer - Pinned permanently to top center of screen */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 bg-black/90 border-4 border-yellow-400 text-yellow-400 px-6 py-2 font-mono text-xs md:text-sm font-bold tracking-widest uppercase select-none shadow-[0_0_15px_rgba(234,179,8,0.4)]">
-        TIME: {roomState ? roomState.timer : 0}s
+    <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Host Controls Toggle Button */}
+      {localPlayer?.isHost && (
+        <button
+          onClick={() => setShowHostControls(prev => !prev)}
+          className="fixed top-4 left-4 z-[40] retro-btn retro-btn-white px-3 py-2 text-[8px] md:text-[9px] tracking-wider font-bold cursor-pointer pixel-font"
+        >
+          HOST CONTROLS
+        </button>
+      )}
+
+      {/* Host Controls Slide-Out Panel */}
+      <AnimatePresence>
+        {showHostControls && localPlayer?.isHost && (
+          <motion.div
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-0 left-0 w-64 h-full bg-black/95 border-r-4 border-gray-700 z-[65] p-5 flex flex-col justify-between pixel-font text-white"
+          >
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
+                <span className="text-[10px] md:text-xs text-yellow-500 font-bold uppercase tracking-wider">HOST PANEL</span>
+                <button
+                  onClick={() => setShowHostControls(false)}
+                  className="text-gray-400 hover:text-white font-bold text-xs"
+                >
+                  [X]
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2">
+                <span className="text-[8px] text-gray-500 uppercase tracking-widest mb-1">PLAYER ROSTER:</span>
+                {players.map((p) => (
+                  <div key={p.id} className="flex justify-between items-center p-2 border border-gray-800 bg-black/40 text-[9px]">
+                    <div className="truncate max-w-[120px] flex flex-col">
+                      <span className={p.isAlive ? 'text-white' : 'text-gray-600 line-through'}>{p.name}</span>
+                      <span className="text-[6px] text-gray-500">
+                        {p.isHost ? 'HOST' : p.isAlive ? 'ALIVE' : 'DEAD'} {p.connected === false ? '(AWAY)' : ''}
+                      </span>
+                    </div>
+                    {!p.isHost && (
+                      <button
+                        onClick={() => socket.emit('kickPlayer', { targetPlayerId: p.id })}
+                        className="retro-btn retro-btn-red px-1.5 py-0.5 text-[6px] font-black uppercase tracking-wider cursor-pointer"
+                      >
+                        KICK
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4 mt-4">
+              <button
+                onClick={() => socket.emit('forceSkipPhase')}
+                className="w-full retro-btn retro-btn-red py-2.5 text-[8px] font-bold tracking-widest uppercase cursor-pointer"
+              >
+                FORCE SKIP PHASE
+              </button>
+              <p className="text-[6px] text-gray-500 text-center mt-2 leading-normal uppercase">
+                Use if timer or phase transition gets stuck.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned Round, Phase & Countdown Timer - Pinned permanently to top center of screen */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex gap-2 md:gap-4 select-none whitespace-nowrap">
+        <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
+          ROUND: {roomState ? roomState.roundNumber || 1 : 1}
+        </div>
+        <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
+          PHASE: {gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR' ? 'NIGHT' : gameState}
+        </div>
+        <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
+          TIME: {roomState ? roomState.timer : 0}s
+        </div>
       </div>
+
+      {/* Ghost Mode Indicator */}
+      {!isAlive && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-red-950/90 border-2 border-red-600 text-red-500 px-4 py-1.5 text-[8px] font-bold tracking-widest uppercase pixel-font animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]">
+          GHOST MODE - SPECTATING
+        </div>
+      )}
+
+      {/* Cinematic Reveal Banner Overlay */}
+      {(gameState === 'MORNING_REVEAL' || gameState === 'LYNCH_REVEAL') && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center select-none">
+          {/* CRT overlay elements */}
+          <div className="crt-scanlines crt-flicker"></div>
+          <div className="crt-light-roll"></div>
+          <div className="crt-vignette"></div>
+
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: [0.8, 1.05, 1], opacity: 1 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="text-center px-6 max-w-2xl"
+          >
+            {gameState === 'MORNING_REVEAL' ? (
+              <>
+                <h2 className="text-sm md:text-md text-gray-500 uppercase tracking-[0.3em] mb-6">
+                  MORNING REPORT
+                </h2>
+                {roomState?.morningRevealMessage && !roomState.morningRevealMessage.startsWith('No one') ? (
+                  <h1 className="text-xl md:text-4xl font-black uppercase tracking-wider pixel-font text-red-600 animate-pulse leading-normal">
+                    {roomState.morningRevealMessage} in the night
+                  </h1>
+                ) : (
+                  <h1 className="text-xl md:text-4xl font-black uppercase tracking-wider pixel-font text-blue-400 leading-normal">
+                    No one was eliminated in the night
+                  </h1>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 className="text-sm md:text-md text-gray-500 uppercase tracking-[0.3em] mb-6">
+                  VOTING RESULT
+                </h2>
+                <h1 className={`text-xl md:text-4xl font-black uppercase tracking-wider pixel-font leading-normal ${
+                  roomState?.lynchRevealMessage?.includes('MAFIA') ? 'text-red-600 animate-pulse' :
+                  roomState?.lynchRevealMessage?.includes('DOCTOR') ? 'text-white' :
+                  roomState?.lynchRevealMessage?.includes('CIVILIAN') ? 'text-blue-400' : 'text-yellow-500'
+                }`}>
+                  {roomState?.lynchRevealMessage || 'No one was eliminated'}
+                </h1>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isRevealing && (
@@ -173,7 +320,9 @@ export default function GameArena({
       </AnimatePresence>
 
       {/* Main Game Interface (renders behind the overlay and appears once overlay fades) */}
-      <div className="w-full max-w-5xl bg-black/85 backdrop-blur-[2px] border-4 border-gray-700 pixel-container text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative">
+      <div className={`w-full max-w-5xl bg-black/85 backdrop-blur-[2px] border-4 border-gray-700 pixel-container text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative ${
+        (gameState === 'MORNING_REVEAL' || gameState === 'LYNCH_REVEAL') ? 'pointer-events-none select-none opacity-10 filter blur-md' : ''
+      }`}>
         
         {/* Night Sub-Phase Blocker Overlay */}
         {showBlockerOverlay && (
@@ -189,7 +338,7 @@ export default function GameArena({
         )}
 
         {/* Header Panel */}
-        <div className="border-b-4 border-gray-700 pb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="border-b-4 border-gray-700 pb-4 flex flex-col sm:flex-row justify-between items-center gap-4 relative">
           <div className="text-center sm:text-left">
             <h1 className="text-lg md:text-xl font-bold uppercase tracking-widest arcade-marquee">
               MAFIA
@@ -199,20 +348,19 @@ export default function GameArena({
             </span>
           </div>
 
-          {/* Current Phase Indicator */}
-          <div className="flex items-center gap-4 bg-red-950/20 border-2 border-red-900 px-5 py-2">
-            <span className="text-xs md:text-sm font-bold tracking-wider uppercase animate-pulse">
-              PHASE: {isNight ? 'NIGHT' : 'DAY'}
-            </span>
-            <span className="text-sm md:text-md font-mono font-bold text-red-500">
-              {gameState.replace('PLAYING_', '')}
-            </span>
+          {/* 3D Glass Role Card placed in the absolute center of the header panel */}
+          <div className="sm:absolute sm:left-1/2 sm:-translate-x-1/2 flex items-center justify-center">
+            <div className={`backdrop-blur-md border-4 px-5 py-2.5 text-xs md:text-sm font-black uppercase tracking-widest select-none shadow-[0_4px_15px_rgba(0,0,0,0.5)] ${
+              role === 'MAFIA' ? 'bg-red-500/20 border-red-600 text-red-500' :
+              role === 'DOCTOR' ? 'bg-white/20 border-white text-white' :
+              'bg-blue-400/20 border-blue-400 text-blue-300'
+            }`}>
+              ROLE: {role}
+            </div>
           </div>
 
-          {/* User Role Badge */}
-          <div className={`border-2 px-3 py-1.5 text-[9px] md:text-xs font-bold uppercase tracking-wider ${roleBorderColor} ${roleBgClass} ${roleColorClass}`}>
-            ROLE: {role}
-          </div>
+          {/* Right side spacer to keep layout balanced */}
+          <div className="hidden sm:block w-32"></div>
         </div>
 
         {/* Modular Grid Area */}
@@ -224,62 +372,139 @@ export default function GameArena({
               LOBBY ROSTER
             </h3>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[45vh] pr-1">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 overflow-y-auto max-h-[45vh] pr-1">
               {players.map((player) => {
                 const playerIsLocal = player.id === localPlayerId;
                 const playerIsAlive = player.isAlive !== false;
 
+                // Live vote tracking calculations
+                const dayVotesReceived = Object.values(roomState?.dayVotes || {}).filter(targetId => targetId === player.id).length;
+                const totalAlivePlayers = players.filter(pl => pl.isAlive !== false).length;
+                const dayVotePct = totalAlivePlayers > 0 ? (dayVotesReceived / totalAlivePlayers) * 100 : 0;
+
+                const mafiaVotesReceived = Object.values(roomState?.mafiaVotes || {}).filter(targetId => targetId === player.id).length;
+                const totalAliveMafia = players.filter(pl => pl.role === 'MAFIA' && pl.isAlive !== false).length;
+                const mafiaVotePct = totalAliveMafia > 0 ? (mafiaVotesReceived / totalAliveMafia) * 100 : 0;
+
+                const isCardClickable = isAlive && playerIsAlive && (
+                  (gameState === 'VOTING') ||
+                  (gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && player.role !== 'MAFIA')
+                );
+
+                const playerAvatar = availableAvatars.find(a => a.id === player.avatarId);
+                const avatarSrc = playerAvatar ? playerAvatar.src : null;
+                const avatarName = playerAvatar ? playerAvatar.name : 'Unknown Agent';
+
                 return (
                   <div
                     key={player.id}
-                    className={`relative border-2 p-3 flex items-center gap-3 transition-colors ${
+                    onClick={() => isCardClickable && socket.emit('updateVote', { targetId: player.id })}
+                    className={`relative border-2 p-3 flex flex-col items-center text-center gap-2 transition-colors ${
                       playerIsLocal ? 'border-red-600 bg-red-950/20' : 'border-gray-800 bg-black/60'
-                    } ${!playerIsAlive ? 'opacity-40 bg-black/80' : ''}`}
+                    } ${!playerIsAlive ? 'opacity-40 bg-black/80' : ''} ${
+                      isCardClickable ? 'cursor-pointer hover:border-yellow-500' : ''
+                    }`}
                   >
                     {/* Avatar Container with Dead X Overlay */}
                     <div className="relative flex-shrink-0">
-                      {getAvatarSvg(player.name)}
-                      {!playerIsAlive && (
-                        <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center text-red-600 text-3xl font-black select-none border-2 border-red-600">
-                          X
-                        </div>
+                      <div className="relative w-16 h-16 border-2 border-gray-600 bg-black/60 flex items-center justify-center">
+                        {avatarSrc ? (
+                          <img
+                            src={avatarSrc}
+                            alt={avatarName}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          getAvatarSvg(player.name)
+                        )}
+                        {!playerIsAlive && (
+                          <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center text-red-600 text-3xl font-black select-none border-2 border-red-600">
+                            X
+                          </div>
+                        )}
+                      </div>
+                      
+                      {playerIsLocal && (
+                        <span className="absolute -top-2 -right-2 text-[6px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded select-none">
+                          YOU
+                        </span>
                       )}
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    {/* Player Details */}
+                    <div className="flex-1 w-full min-w-0 flex flex-col items-center">
                       <p className={`text-xs md:text-sm uppercase tracking-wider truncate font-mono ${
                         !playerIsAlive ? 'line-through text-gray-600' : 'text-white'
                       }`}>
                         {player.name}
                       </p>
-                      <span className={`text-[8px] uppercase tracking-widest font-bold ${
+                      <p className="text-gray-400 text-[10px] uppercase font-mono tracking-wide truncate w-full mt-0.5">
+                        {avatarName}
+                      </p>
+                      <span className={`text-[8px] uppercase tracking-widest font-bold mt-1 ${
                         playerIsAlive ? 'text-green-500' : 'text-red-500'
                       }`}>
                         {playerIsAlive ? 'ALIVE' : 'DEAD'}
                       </span>
                     </div>
 
-                    {/* VOTE button on cards during Voting Phase */}
-                    {gameState === 'VOTING' && isAlive && !hasVoted && playerIsAlive && !playerIsLocal && (
-                      <button
-                        onClick={() => socket.emit('dayVote', { targetId: player.id })}
-                        className="retro-btn retro-btn-red px-2 py-1 text-[8px] font-bold uppercase tracking-wider self-center ml-auto cursor-pointer"
-                      >
-                        VOTE
-                      </button>
+                    {/* Action Area */}
+                    <div className="flex gap-2 justify-center items-center mt-1">
+                      {gameState === 'VOTING' && isAlive && playerIsAlive && roomState?.dayVotes?.[localPlayerId] !== player.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // prevent double emission from card click
+                            socket.emit('updateVote', { targetId: player.id });
+                          }}
+                          className="retro-btn retro-btn-red px-2 py-1 text-[8px] font-bold uppercase tracking-wider cursor-pointer animate-pulse"
+                        >
+                          VOTE
+                        </button>
+                      )}
+
+                      {gameState === 'VOTING' && roomState?.dayVotes?.[localPlayerId] === player.id && (
+                        <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest animate-pulse">
+                          VOTED
+                        </span>
+                      )}
+
+                      {gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && roomState?.mafiaVotes?.[localPlayerId] === player.id && (
+                        <span className="text-[8px] text-red-500 font-bold uppercase tracking-widest animate-pulse">
+                          TARGETED
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Live Vote Progress Bar during Day Voting */}
+                    {gameState === 'VOTING' && playerIsAlive && (
+                      <div className="w-full mt-1 text-left">
+                        <div className="flex justify-between text-[7px] text-yellow-400 font-mono mb-0.5">
+                          <span>VOTES RECEIVING</span>
+                          <span>{dayVotesReceived}/{totalAlivePlayers} Votes</span>
+                        </div>
+                        <div className="w-full bg-gray-950 border border-gray-800 h-2 rounded-sm overflow-hidden">
+                          <div
+                            className="bg-yellow-500 h-full transition-all duration-300 shadow-[0_0_8px_rgba(234,179,8,0.6)]"
+                            style={{ width: `${dayVotePct}%` }}
+                          />
+                        </div>
+                      </div>
                     )}
 
-                    {/* Voted tick label */}
-                    {gameState === 'VOTING' && roomState && roomState.dayVotes && roomState.dayVotes[localPlayerId] === player.id && (
-                      <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest ml-auto animate-pulse">
-                        VOTED
-                      </span>
-                    )}
-
-                    {playerIsLocal && (
-                      <span className="text-[8px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded select-none self-start ml-auto">
-                        YOU
-                      </span>
+                    {/* Live Target Progress Bar during Mafia Night Voting */}
+                    {gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && playerIsAlive && player.role !== 'MAFIA' && (
+                      <div className="w-full mt-1 text-left">
+                        <div className="flex justify-between text-[7px] text-red-500 font-mono mb-0.5">
+                          <span>TARGETED</span>
+                          <span>{mafiaVotesReceived}/{totalAliveMafia} Votes</span>
+                        </div>
+                        <div className="w-full bg-gray-950 border border-gray-800 h-2 rounded-sm overflow-hidden">
+                          <div
+                            className="bg-red-600 h-full transition-all duration-300 shadow-[0_0_8px_rgba(220,38,38,0.6)]"
+                            style={{ width: `${mafiaVotePct}%` }}
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
@@ -305,29 +530,87 @@ export default function GameArena({
                     You can spectate but cannot interact; dead players tell no tales.
                   </p>
                 </div>
-              ) : (gameState === 'DAY' || gameState === 'VOTING') ? (
-                // Day / Voting Phase (All roles show system logs)
-                <div className="flex flex-col gap-2 flex-1 min-h-0">
-                  <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
-                    SYSTEM ACTION LOG:
-                  </span>
-                  <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-500 overflow-y-auto max-h-[30vh]">
-                    {systemLogs.map((log) => (
-                      <p key={log.id} className="mb-1 leading-normal">
-                        {log.text}
-                      </p>
-                    ))}
-                    <div ref={chatEndRef} />
+             ) : gameState === 'DAY' ? (
+                // Day Phase chat debate
+                <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
+                  <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <span className="text-[9px] text-yellow-400 uppercase tracking-wider font-bold">
+                      DAY DISCUSSION CHAT:
+                    </span>
+                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-400 overflow-y-auto max-h-[22vh]">
+                      {(roomState?.dayChatLogs || []).map((log) => (
+                        <p key={log.id} className="mb-1 leading-normal">
+                          {log.text}
+                        </p>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
                   </div>
-                  <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-1 leading-normal">
-                    {gameState === 'VOTING' ? 'Select a player on the roster grid to cast your vote.' : 'Discuss with other players and coordinate your votes.'}
+
+                  {isAlive && (
+                    <form onSubmit={handleSendDayMsg} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={dayChatMsg}
+                        onChange={(e) => setDayChatMsg(e.target.value)}
+                        placeholder="DISCUSS_"
+                        className="flex-1 bg-black border border-gray-700 text-white text-[9px] font-mono px-2 py-1 outline-none"
+                      />
+                      <button type="submit" className="retro-btn retro-btn-red text-[8px] font-bold px-3 uppercase">
+                        SEND
+                      </button>
+                    </form>
+                  )}
+
+                  <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-2 leading-normal">
+                    Debate with other players and find the Mafia.
+                  </p>
+                </div>
+             ) : gameState === 'VOTING' ? (
+                // Voting Phase action logs
+                <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
+                  <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
+                      SYSTEM ACTION LOG:
+                    </span>
+                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-500 overflow-y-auto max-h-[25vh]">
+                      {systemLogs.map((log) => (
+                        <p key={log.id} className="mb-1 leading-normal">
+                          {log.text}
+                        </p>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  </div>
+
+                  {/* Voting skip button for alive players */}
+                  {isAlive && roomState?.dayVotes?.[localPlayerId] !== 'SKIP' && (
+                    <button
+                      onClick={() => socket.emit('updateVote', { targetId: 'SKIP' })}
+                      className="retro-btn retro-btn-white py-2 text-[9px] font-bold uppercase tracking-wider mt-2 cursor-pointer w-full"
+                    >
+                      SKIP VOTE
+                    </button>
+                  )}
+
+                  {/* Voted Skip label */}
+                  {roomState?.dayVotes?.[localPlayerId] === 'SKIP' && (
+                    <div className="flex flex-col items-center mt-2">
+                      <span className="text-[9px] text-green-500 font-bold uppercase tracking-widest text-center animate-pulse">
+                        YOU VOTED TO SKIP
+                      </span>
+                    </div>
+                  )}
+
+                  <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-2 leading-normal">
+                    Select a player on the roster grid or click Skip to cast your vote.
                   </p>
                 </div>
               ) : gameState === 'NIGHT_MAFIA' && role === 'MAFIA' ? (
                 // Night Phase - Mafia
                 <div className="flex flex-col gap-2 flex-1 min-h-0">
                   <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
-                    MAFIA BOARD (NIGHT CHAT):
+                    MAFIA BOARD (NIGHT CHAT) {roomState?.mafiaVoteStatus ? `[${roomState.mafiaVoteStatus}]` : ''}:
                   </span>
                   
                   {/* Mafia Private Chat */}
@@ -367,7 +650,7 @@ export default function GameArena({
                       >
                         <option value="">CHOOSE_TARGET_</option>
                         {players
-                          .filter((p) => p.id !== localPlayerId && p.isAlive !== false)
+                          .filter((p) => p.id !== localPlayerId && p.isAlive !== false && p.role !== 'MAFIA')
                           .map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.name}
@@ -434,6 +717,61 @@ export default function GameArena({
           </div>
 
         </div>
+
+        {/* Game Over Screen Overlay */}
+        {(gameState === 'GAME_OVER_CIVILIANS' || gameState === 'GAME_OVER_MAFIA') && (
+          <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center select-none">
+            {/* CRT overlay elements */}
+            <div className="crt-scanlines crt-flicker"></div>
+            <div className="crt-light-roll"></div>
+            <div className="crt-vignette"></div>
+
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="max-w-md w-full border-4 border-gray-700 pixel-container bg-black p-8 flex flex-col gap-6"
+            >
+              <h2 className="text-gray-500 text-[10px] uppercase tracking-[0.3em] font-mono">
+                GAME OVER
+              </h2>
+
+              {gameState === 'GAME_OVER_CIVILIANS' ? (
+                <h1 className="text-blue-300 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-bounce">
+                  YAY, CIVILIANS WON!
+                </h1>
+              ) : (
+                <h1 className="text-red-600 text-xl md:text-3xl font-black uppercase tracking-wider pixel-font animate-pulse">
+                  THE MAFIA HAS TAKEN OVER!
+                </h1>
+              )}
+
+              <div className="flex flex-col gap-4 mt-4">
+                <button
+                  onClick={() => {
+                    if (onTransitionToWaitingRoom) {
+                      onTransitionToWaitingRoom();
+                    }
+                    socket.emit('playAgain');
+                  }}
+                  className="retro-btn retro-btn-red py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
+                >
+                  PLAY AGAIN WITH SAME CODE
+                </button>
+
+                <button
+                  onClick={() => {
+                    socket.disconnect();
+                    window.location.reload();
+                  }}
+                  className="retro-btn retro-btn-white py-4 text-xs font-bold tracking-wider uppercase cursor-pointer"
+                >
+                  RETURN TO HOMEPAGE
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
       </div>
     </div>

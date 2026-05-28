@@ -1,0 +1,21 @@
+export const AVATARS = [
+  { id: '007', src: '/avatars/007.png', name: '007' },
+  { id: '3yes', src: '/avatars/3yes.png', name: '3yes' },
+  { id: 'Boo-nary', src: '/avatars/Boo-nary.png', name: 'Boo Nary' },
+  { id: 'Ceenan', src: '/avatars/Ceenan.png', name: 'Ceenan' },
+  { id: 'Cyber-Blade', src: '/avatars/Cyber-Blade.png', name: 'Cyber Blade' },
+  { id: 'E-Ninja', src: '/avatars/E-Ninja.png', name: 'E Ninja' },
+  { id: 'Echo-Phantom', src: '/avatars/Echo-Phantom.png', name: 'Echo Phantom' },
+  { id: 'GGs', src: '/avatars/GGs.png', name: 'Ggs' },
+  { id: 'Glitch-Ghost', src: '/avatars/Glitch-Ghost.png', name: 'Glitch Ghost' },
+  { id: 'Ice-Knight', src: '/avatars/Ice-Knight.png', name: 'Ice Knight' },
+  { id: 'Iron-Thor', src: '/avatars/Iron-Thor.png', name: 'Iron Thor' },
+  { id: 'JohnKiryakou', src: '/avatars/JohnKiryakou.png', name: 'Johnkiryakou' },
+  { id: 'KittyKat', src: '/avatars/KittyKat.png', name: 'Kittykat' },
+  { id: 'Nano-Hawk', src: '/avatars/Nano-Hawk.png', name: 'Nano Hawk' },
+  { id: 'Neon-Viper', src: '/avatars/Neon-Viper.png', name: 'Neon Viper' },
+  { id: 'Plasma-Indian', src: '/avatars/Plasma-Indian.png', name: 'Plasma Indian' },
+  { id: 'Pulse-Witch', src: '/avatars/Pulse-Witch.png', name: 'Pulse Witch' },
+  { id: 'Tin-Grid', src: '/avatars/Tin-Grid.png', name: 'Tin Grid' },
+  { id: 'WizOZ', src: '/avatars/WizOZ.png', name: 'Wizoz' }
+];

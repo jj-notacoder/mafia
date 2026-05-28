@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AVATARS } from './avatars';
 
 export default function Lobby({
   socket,
@@ -9,17 +10,27 @@ export default function Lobby({
   setRoomCode,
   isJoining,
   setIsJoining,
+  playerId,
 }) {
   const [errorMsg, setErrorMsg] = useState('');
+  const [joinError, setJoinError] = useState('');
 
   // Listen to socket error event locally to display error below the input field for 3s
   useEffect(() => {
     const handleError = (message) => {
-      setErrorMsg(message);
-      const timer = setTimeout(() => {
-        setErrorMsg('');
-      }, 3000);
-      return () => clearTimeout(timer);
+      if (message === 'Incorrect code pls check it') {
+        setJoinError('Incorrect code pls check it');
+        const timer = setTimeout(() => {
+          setJoinError('');
+        }, 3000);
+        return () => clearTimeout(timer);
+      } else {
+        setErrorMsg(message);
+        const timer = setTimeout(() => {
+          setErrorMsg('');
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
     };
 
     socket.on('error', handleError);
@@ -35,8 +46,13 @@ export default function Lobby({
       alert('PLAYER NAME IS REQUIRED');
       return;
     }
-    console.log('Action: EMIT createRoom', { playerName });
-    socket.emit('createRoom', { playerName: playerName.toUpperCase() });
+    const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+    console.log('Action: EMIT createRoom', { playerName, playerId, avatarId: randomAvatar.id });
+    socket.emit('createRoom', { 
+      playerName: playerName.toUpperCase(), 
+      playerId, 
+      avatarId: randomAvatar.id 
+    });
   };
 
   // Socket.io room joining handler
@@ -50,10 +66,13 @@ export default function Lobby({
       alert('INVALID ROOM CODE');
       return;
     }
-    console.log('Action: EMIT joinRoom', { playerName, roomCode });
+    const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+    console.log('Action: EMIT joinRoom', { playerName, roomCode, playerId, avatarId: randomAvatar.id });
     socket.emit('joinRoom', {
       playerName: playerName.toUpperCase(),
       roomCode: roomCode.toUpperCase(),
+      playerId,
+      avatarId: randomAvatar.id,
     });
   };
 
@@ -83,7 +102,7 @@ export default function Lobby({
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-between max-h-[85vh] px-4 py-8">
+    <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-between px-4 py-8 relative">
       
       {/* Top spacer */}
       <div className="h-4"></div>
@@ -183,7 +202,12 @@ export default function Lobby({
                     CONFIRM
                   </button>
                 </div>
-                {errorMsg && (
+                {joinError && (
+                  <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider text-left mt-1 animate-pulse">
+                    {joinError}
+                  </p>
+                )}
+                {!joinError && errorMsg && (
                   <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider text-left mt-1 animate-pulse">
                     {errorMsg}
                   </p>

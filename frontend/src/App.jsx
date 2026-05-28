@@ -8,13 +8,24 @@ const socket = io('http://localhost:3001', {
   autoConnect: true,
 });
 
+const getPlayerId = () => {
+  let id = sessionStorage.getItem('mafia_player_id');
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    sessionStorage.setItem('mafia_player_id', id);
+  }
+  return id;
+};
+
 function App() {
+  const [playerId] = useState(getPlayerId);
   // Global routing and lobby states
   const [screen, setScreen] = useState('LOBBY'); // 'LOBBY' or 'WAITING_ROOM'
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [roomState, setRoomState] = useState(null);
+  const [kickedAlert, setKickedAlert] = useState(false);
   
   // Media states (defaulting to true)
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
@@ -77,6 +88,11 @@ function App() {
       if (updatedState.roomCode) {
         setRoomCode(updatedState.roomCode);
       }
+
+      // If the game has been reset to LOBBY, transition back to WAITING_ROOM screen
+      if (updatedState.gameState === 'LOBBY') {
+        setScreen('WAITING_ROOM');
+      }
     };
 
     socket.on('roomStateUpdated', handleRoomStateUpdate);
@@ -94,6 +110,20 @@ function App() {
       console.error('Socket error:', message);
     });
 
+    socket.on('kickedByHost', () => {
+      console.log('You were kicked by the host.');
+      sessionStorage.removeItem('mafia_player_id');
+      socket.disconnect();
+      setScreen('LOBBY');
+      setKickedAlert(true);
+      setTimeout(() => {
+        setKickedAlert(false);
+      }, 5000);
+      setTimeout(() => {
+        socket.connect();
+      }, 100);
+    });
+
     return () => {
       socket.off('roomCreated');
       socket.off('roomJoined');
@@ -101,6 +131,7 @@ function App() {
       socket.off('gameStateUpdated', handleRoomStateUpdate);
       socket.off('gameStarted');
       socket.off('error');
+      socket.off('kickedByHost');
     };
   }, []);
 
@@ -110,7 +141,7 @@ function App() {
   };
 
   return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden select-none pixel-font text-white flex flex-col items-center justify-center">
+    <div className="relative w-full min-h-screen bg-black overflow-hidden select-none pixel-font text-white flex flex-col items-center justify-center">
       
       {/* Global styling injected for persistent CRT overlays and retro layout */}
       <style dangerouslySetInnerHTML={{ __html: `
@@ -258,6 +289,13 @@ function App() {
         }
       ` }} />
 
+      {/* Kicked by Host Alert Banner */}
+      {kickedAlert && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-red-600 border-4 border-black text-white px-6 py-3 font-mono text-xs md:text-sm font-bold tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.8)] animate-bounce select-none">
+          YOU WERE KICKED FROM THE ROOM.
+        </div>
+      )}
+
       {/* CRT Overlay elements (Persistent across page screen changes) */}
       <div className="crt-scanlines crt-flicker"></div>
       <div className="crt-light-roll"></div>
@@ -287,19 +325,19 @@ function App() {
       {/* Global Sound Control Button */}
       <button
         onClick={toggleSound}
-        className="fixed bottom-4 left-4 z-50 classic-win95-btn px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font"
+        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 classic-win95-btn px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font"
       >
         <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
         SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
       </button>
 
       {/* Global version text */}
-      <div className="fixed bottom-2 w-full text-center z-50 text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest pixel-font pointer-events-none">
+      <div className="fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom))] w-full text-center z-50 text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest pixel-font pointer-events-none">
         v1.0.0 - Trust No One
       </div>
 
       {/* Conditional Screen Rendering Engine */}
-      <div className="relative z-10 w-full h-full">
+      <div className="relative z-10 w-full flex-1 flex flex-col">
         {screen === 'LOBBY' ? (
           <Lobby
             socket={socket}
@@ -309,6 +347,7 @@ function App() {
             setRoomCode={setRoomCode}
             isJoining={isJoining}
             setIsJoining={setIsJoining}
+            playerId={playerId}
           />
         ) : screen === 'WAITING_ROOM' ? (
           <WaitingRoom
@@ -316,12 +355,15 @@ function App() {
             roomCode={roomCode}
             roomState={roomState}
             setAudioPlaying={setIsAudioPlaying}
+            playerId={playerId}
           />
         ) : (
           <GameArena
             socket={socket}
-            localPlayerId={socket.id}
+            localPlayerId={playerId}
             roomState={roomState}
+            playerId={playerId}
+            onTransitionToWaitingRoom={() => setScreen('WAITING_ROOM')}
           />
         )}
       </div>
