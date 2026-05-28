@@ -3,10 +3,7 @@ import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 
-// Temporarily hardcode your live Render URL to guarantee it connects.
-// Make sure you replace this string with your ACTUAL Render URL!
-// DO NOT put a slash (/) at the very end of the URL.
-const socket = io('https://mafia-1-mtgl.onrender.com', {
+const socket = io('http://localhost:3001', {
   autoConnect: true,
 });
 
@@ -79,7 +76,7 @@ function App() {
     });
 
     // Sync room data broadcasted from server
-    socket.on('roomStateUpdated', (updatedState) => {
+    const handleRoomStateUpdate = (updatedState) => {
       console.log('Room state updated:', updatedState);
       setRoomState(updatedState);
       
@@ -87,7 +84,10 @@ function App() {
       if (updatedState.roomCode) {
         setRoomCode(updatedState.roomCode);
       }
-    });
+    };
+
+    socket.on('roomStateUpdated', handleRoomStateUpdate);
+    socket.on('gameStateUpdated', handleRoomStateUpdate);
 
     // Game starts trigger
     socket.on('gameStarted', () => {
@@ -96,15 +96,16 @@ function App() {
       // TODO: Transition to gameplay screen here (e.g. setScreen('GAME'))
     });
 
-    // Handle generic server errors (e.g. room not found)
+    // Handle generic server errors silently in global app context (Lobby will handle displaying them)
     socket.on('error', (message) => {
-      alert(message);
+      console.error('Socket error:', message);
     });
 
     return () => {
       socket.off('roomCreated');
       socket.off('roomJoined');
-      socket.off('roomStateUpdated');
+      socket.off('roomStateUpdated', handleRoomStateUpdate);
+      socket.off('gameStateUpdated', handleRoomStateUpdate);
       socket.off('gameStarted');
       socket.off('error');
     };

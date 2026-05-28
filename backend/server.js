@@ -5,10 +5,10 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// Enable CORS for Socket.io to allow connections from local dev and production Vercel app
+// Enable CORS for Socket.io to allow connections from local dev
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:5173", "https://mafia-ochre.vercel.app"],
+    origin: ["http://localhost:3000", "http://localhost:5173"],
     methods: ["GET", "POST"]
   }
 });
@@ -59,6 +59,8 @@ io.on('connection', (socket) => {
         {
           id: socket.id,
           name: playerName.toUpperCase(),
+          role: null,
+          isAlive: true,
           isHost: true,
         }
       ],
@@ -90,12 +92,12 @@ io.on('connection', (socket) => {
 
     const room = rooms[code];
     if (!room) {
-      socket.emit('error', 'Room not found');
+      socket.emit('error', 'Invalid Room Code');
       return;
     }
 
     if (room.gameState !== 'LOBBY') {
-      socket.emit('error', 'Game has already started in this room');
+      socket.emit('error', 'Game already in progress');
       return;
     }
 
@@ -104,7 +106,9 @@ io.on('connection', (socket) => {
 
     const newPlayer = {
       id: socket.id,
-      name: playerName.toUpperCase(),
+      name: playerName,
+      role: null,
+      isAlive: true,
       isHost: false,
     };
 
@@ -115,6 +119,7 @@ io.on('connection', (socket) => {
 
     // Notify all players in room of state update
     io.to(code).emit('roomStateUpdated', room);
+    io.to(code).emit('gameStateUpdated', room);
     
     // Explicitly send success payload back to guest to transition screen
     socket.emit('roomJoined', {
@@ -193,7 +198,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(3001, () => {
+  console.log('Server running on port 3001');
 });

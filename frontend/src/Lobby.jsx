@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Lobby({
@@ -12,6 +12,24 @@ export default function Lobby({
   isAudioPlaying,
   toggleSound,
 }) {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Listen to socket error event locally to display error below the input field for 3s
+  useEffect(() => {
+    const handleError = (message) => {
+      setErrorMsg(message);
+      const timer = setTimeout(() => {
+        setErrorMsg('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    };
+
+    socket.on('error', handleError);
+    return () => {
+      socket.off('error', handleError);
+    };
+  }, [socket]);
+
   // Socket.io room creation handler
   const handleCreateRoom = (e) => {
     e.preventDefault();
@@ -164,9 +182,14 @@ export default function Lobby({
                     onClick={handleConfirmJoin}
                     className="retro-btn retro-btn-red px-5 text-xs font-bold tracking-wider uppercase"
                   >
-                    OK
+                    CONFIRM
                   </button>
                 </div>
+                {errorMsg && (
+                  <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider text-left mt-1 animate-pulse">
+                    {errorMsg}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => {

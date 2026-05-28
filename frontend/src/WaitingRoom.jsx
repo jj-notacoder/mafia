@@ -107,75 +107,80 @@ export default function WaitingRoom({
             </span>
           </div>
 
-          <div className="flex flex-col gap-5 flex-1">
-            
-            {/* Setting: Night Phase */}
-            <div className="flex flex-col gap-2 text-left">
-              <div className="flex justify-between items-center text-[10px] md:text-xs">
-                <span className="text-white tracking-wider uppercase">NIGHT TIMER:</span>
-                <span className="text-red-500 font-mono font-bold">{roomState.settings.night}s</span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="120"
-                step="5"
-                value={roomState.settings.night}
-                disabled={!isHost}
-                onChange={(e) => handleSettingChange('night', e.target.value)}
-                className={`w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600 ${
-                  !isHost ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
+          <div className="flex flex-col gap-5 flex-1 justify-center">
+            {isHost ? (
+              <>
+                {/* Setting: Night Phase */}
+                <div className="flex flex-col gap-2 text-left">
+                  <div className="flex justify-between items-center text-[10px] md:text-xs">
+                    <span className="text-white tracking-wider uppercase">NIGHT TIMER:</span>
+                    <span className="text-red-500 font-mono font-bold">{roomState.settings.night}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="120"
+                    step="5"
+                    value={roomState.settings.night}
+                    onChange={(e) => handleSettingChange('night', e.target.value)}
+                    className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
+                  />
+                </div>
 
-            {/* Setting: Day Phase */}
-            <div className="flex flex-col gap-2 text-left">
-              <div className="flex justify-between items-center text-[10px] md:text-xs">
-                <span className="text-white tracking-wider uppercase">DAY TIMER:</span>
-                <span className="text-red-500 font-mono font-bold">{roomState.settings.day}s</span>
-              </div>
-              <input
-                type="range"
-                min="60"
-                max="600"
-                step="10"
-                value={roomState.settings.day}
-                disabled={!isHost}
-                onChange={(e) => handleSettingChange('day', e.target.value)}
-                className={`w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600 ${
-                  !isHost ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
+                {/* Setting: Day Phase */}
+                <div className="flex flex-col gap-2 text-left">
+                  <div className="flex justify-between items-center text-[10px] md:text-xs">
+                    <span className="text-white tracking-wider uppercase">DAY TIMER:</span>
+                    <span className="text-red-500 font-mono font-bold">{roomState.settings.day}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="60"
+                    max="600"
+                    step="10"
+                    value={roomState.settings.day}
+                    onChange={(e) => handleSettingChange('day', e.target.value)}
+                    className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
+                  />
+                </div>
 
-            {/* Setting: Voting Phase */}
-            <div className="flex flex-col gap-2 text-left">
-              <div className="flex justify-between items-center text-[10px] md:text-xs">
-                <span className="text-white tracking-wider uppercase">VOTING TIMER:</span>
-                <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
+                {/* Setting: Voting Phase */}
+                <div className="flex flex-col gap-2 text-left">
+                  <div className="flex justify-between items-center text-[10px] md:text-xs">
+                    <span className="text-white tracking-wider uppercase">VOTING TIMER:</span>
+                    <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="90"
+                    step="5"
+                    value={roomState.settings.voting}
+                    onChange={(e) => handleSettingChange('voting', e.target.value)}
+                    className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-4 text-[10px] md:text-xs tracking-widest uppercase text-left">
+                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
+                  <span className="text-gray-400">Night Phase:</span>
+                  <span className="text-red-500 font-mono font-bold">{roomState.settings.night}s</span>
+                </div>
+                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
+                  <span className="text-gray-400">Day Phase:</span>
+                  <span className="text-red-500 font-mono font-bold">{roomState.settings.day}s</span>
+                </div>
+                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
+                  <span className="text-gray-400">Voting Phase:</span>
+                  <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
+                </div>
+                
+                <p className="text-[7px] md:text-[8px] text-gray-500 tracking-wider text-center uppercase border border-gray-800/60 p-2 mt-4">
+                  Only the host can modify game settings.
+                </p>
               </div>
-              <input
-                type="range"
-                min="10"
-                max="90"
-                step="5"
-                value={roomState.settings.voting}
-                disabled={!isHost}
-                onChange={(e) => handleSettingChange('voting', e.target.value)}
-                className={`w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600 ${
-                  !isHost ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
-
-            {/* Guest instructions if sliders are disabled */}
-            {!isHost && (
-              <p className="text-[7px] md:text-[8px] text-gray-500 tracking-wider text-center uppercase border border-gray-800 p-2 mt-auto">
-                Only the host can modify game settings.
-              </p>
             )}
-
           </div>
         </div>
 
@@ -198,7 +203,7 @@ export default function WaitingRoom({
             transition={{ repeat: Infinity, duration: 2.0, ease: 'easeInOut' }}
             className="w-full border-2 border-red-950 bg-red-950/20 text-red-500 py-4 text-[9px] md:text-[10px] font-bold tracking-widest uppercase text-center"
           >
-            WAITING FOR HOST TO START GAME...
+            WAITING FOR HOST TO START...
           </motion.div>
         )}
       </div>
