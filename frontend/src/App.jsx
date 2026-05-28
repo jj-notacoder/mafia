@@ -15,8 +15,8 @@ function App() {
   const [isJoining, setIsJoining] = useState(false);
   const [roomState, setRoomState] = useState(null);
   
-  // Media states (defaulting to false)
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  // Media states (defaulting to true)
+  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
   const audioRef = useRef(null);
 
   // Audio state effect handler
@@ -30,6 +30,23 @@ function App() {
         audioRef.current.pause();
       }
     }
+  }, [isAudioPlaying]);
+
+  // Document interaction autoplay bypass effect
+  useEffect(() => {
+    const handleFirstClick = () => {
+      if (audioRef.current && isAudioPlaying && audioRef.current.paused) {
+        audioRef.current.play().catch((err) => {
+          console.warn('Click interaction audio play blocked:', err);
+        });
+      }
+      document.removeEventListener('click', handleFirstClick);
+    };
+
+    document.addEventListener('click', handleFirstClick);
+    return () => {
+      document.removeEventListener('click', handleFirstClick);
+    };
   }, [isAudioPlaying]);
 
   // Global socket listener hooks
@@ -250,6 +267,7 @@ function App() {
       <audio
         ref={audioRef}
         src="desktop/mafia/bgmusic1.mp3"
+        autoPlay
         loop
       />
 
@@ -274,6 +292,11 @@ function App() {
         <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
         SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
       </button>
+
+      {/* Global version text */}
+      <div className="fixed bottom-2 w-full text-center z-50 text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest pixel-font pointer-events-none">
+        v1.0.0 - Trust No One
+      </div>
 
       {/* Conditional Screen Rendering Engine */}
       <div className="relative z-10 w-full h-full">

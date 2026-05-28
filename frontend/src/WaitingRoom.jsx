@@ -205,14 +205,6 @@ export default function WaitingRoom({
           </motion.div>
         )}
       </div>
-
-      {/* Footer controls & Version labels */}
-      <div className="flex justify-end items-center w-full px-2 mt-auto">
-        <span className="text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest">
-          v1.0.0 - Trust No One
-        </span>
-      </div>
-      
     </div>
   );
 }

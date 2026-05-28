@@ -202,18 +202,6 @@ export default function Lobby({
           )}
         </AnimatePresence>
       </motion.div>
-
-      {/* Footer Utility Area */}
-      <motion.div
-        variants={utilityVariants}
-        initial="hidden"
-        animate="visible"
-        className="flex justify-end items-center w-full px-2"
-      >
-        <span className="text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest">
-          v1.0.0 - Trust No One
-        </span>
-      </motion.div>
     </div>
   );
 }
