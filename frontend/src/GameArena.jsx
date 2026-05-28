@@ -52,6 +52,7 @@ export default function GameArena({
 
   const role = localPlayer.role || 'CIVILIAN';
   const isAlive = localPlayer.isAlive;
+  const otherMafias = players.filter(p => p.role === 'MAFIA' && p.id !== localPlayerId);
 
   // Set role colors and subtexts
   let roleColorClass = 'text-blue-300';
@@ -314,6 +315,21 @@ export default function GameArena({
               <p className="text-xs md:text-sm text-gray-400 tracking-[0.2em] uppercase font-mono mt-4">
                 {subtext}
               </p>
+
+              {role === 'MAFIA' && otherMafias.length > 0 && (
+                <div className="mt-8 border-t-2 border-red-950/60 pt-4 flex flex-col items-center">
+                  <p className="text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest mb-3 font-mono">
+                    TEAM MEMBERS:
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2.5">
+                    {otherMafias.map(m => (
+                      <span key={m.id} className="text-[10px] text-red-500 font-mono uppercase font-bold bg-red-950/40 border border-red-800/40 px-3 py-1.5 shadow-[0_0_8px_rgba(220,38,38,0.2)] animate-pulse">
+                        {m.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -505,6 +505,7 @@ io.on('connection', (socket) => {
         night: 45,
         day: 240,
         voting: 30,
+        mafiaCount: 'auto',
       },
       timer: 0,
       systemLogs: [],
@@ -637,6 +638,7 @@ io.on('connection', (socket) => {
       night: Number(settings.night),
       day: Number(settings.day),
       voting: Number(settings.voting),
+      mafiaCount: settings.mafiaCount === 'auto' ? 'auto' : Number(settings.mafiaCount),
     };
 
     console.log(`Room ${currentRoomCode} settings updated:`, room.settings);
@@ -666,8 +668,22 @@ io.on('connection', (socket) => {
 
     // 1. Calculate the exact number of each role based on our rules
     let mafiaCount = 1;
-    if (numPlayers >= 5 && numPlayers <= 7) mafiaCount = 2;
-    if (numPlayers >= 8) mafiaCount = 3;
+    const chosenMafiaCount = room.settings?.mafiaCount;
+    if (chosenMafiaCount && chosenMafiaCount !== 'auto') {
+      mafiaCount = Number(chosenMafiaCount);
+      // Validate player count for manual mafia count
+      if (mafiaCount === 2 && numPlayers < 5) {
+        socket.emit('error', 'Need at least 5 players for 2 Mafias.');
+        return;
+      }
+      if (mafiaCount === 3 && numPlayers < 7) {
+        socket.emit('error', 'Need at least 7 players for 3 Mafias.');
+        return;
+      }
+    } else {
+      if (numPlayers >= 5 && numPlayers <= 7) mafiaCount = 2;
+      if (numPlayers >= 8) mafiaCount = 3;
+    }
 
     let doctorCount = 1;
     let civilianCount = numPlayers - mafiaCount - doctorCount;

@@ -22,7 +22,7 @@ export default function WaitingRoom({
   const handleSettingChange = (settingName, value) => {
     const updatedSettings = {
       ...roomState.settings,
-      [settingName]: Number(value),
+      [settingName]: value === 'auto' ? 'auto' : Number(value),
     };
     socket.emit('updateSettings', { settings: updatedSettings });
   };
@@ -261,6 +261,37 @@ export default function WaitingRoom({
                     className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
                   />
                 </div>
+
+                {/* Setting: Mafia Count */}
+                <div className="flex flex-col gap-2 text-left">
+                  <div className="flex justify-between items-center text-[10px] md:text-xs">
+                    <span className="text-white tracking-wider uppercase">MAFIA COUNT:</span>
+                    <span className="text-red-500 font-mono font-bold">
+                      {roomState.settings.mafiaCount === 'auto' || !roomState.settings.mafiaCount
+                        ? 'AUTO'
+                        : roomState.settings.mafiaCount}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    {['auto', 1, 2, 3].map((val) => {
+                      const isActive = (roomState.settings.mafiaCount || 'auto') === val;
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => handleSettingChange('mafiaCount', val)}
+                          className={`flex-1 py-1.5 text-[8px] md:text-[9px] font-bold uppercase border ${
+                            isActive
+                              ? 'bg-red-600 border-red-600 text-white shadow-[0_0_8px_rgba(220,38,38,0.6)] animate-pulse'
+                              : 'bg-black border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+                          }`}
+                        >
+                          {val === 'auto' ? 'AUTO' : val}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             ) : (
               <div className="flex flex-col gap-4 text-[10px] md:text-xs tracking-widest uppercase text-left">
@@ -275,6 +306,14 @@ export default function WaitingRoom({
                 <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
                   <span className="text-gray-400">Voting Phase:</span>
                   <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
+                </div>
+                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
+                  <span className="text-gray-400">Mafia Count:</span>
+                  <span className="text-red-500 font-mono font-bold">
+                    {roomState.settings.mafiaCount === 'auto' || !roomState.settings.mafiaCount
+                      ? 'AUTO'
+                      : roomState.settings.mafiaCount}
+                  </span>
                 </div>
                 
                 <p className="text-[7px] md:text-[8px] text-gray-500 tracking-wider text-center uppercase border border-gray-800/60 p-2 mt-4">
