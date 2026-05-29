@@ -16,6 +16,9 @@ export default function GameArena({
   const [mafiaChatMsg, setMafiaChatMsg] = useState('');
   const [dayChatMsg, setDayChatMsg] = useState('');
   const [showHostControls, setShowHostControls] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [showHostBanner, setShowHostBanner] = useState(false);
   
   // Extract values from roomState
   const gameState = roomState ? roomState.gameState : 'LOBBY';
@@ -39,6 +42,33 @@ export default function GameArena({
     }, 4000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Socket listeners for alerts and host delegation
+  useEffect(() => {
+    const handleSystemAlert = (msg) => {
+      setToastMsg(msg);
+      const timer = setTimeout(() => {
+        setToastMsg('');
+      }, 4000);
+      return () => clearTimeout(timer);
+    };
+
+    const handleHostTransferred = () => {
+      setShowHostBanner(true);
+      const timer = setTimeout(() => {
+        setShowHostBanner(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    };
+
+    socket.on('systemAlert', handleSystemAlert);
+    socket.on('hostTransferred', handleHostTransferred);
+
+    return () => {
+      socket.off('systemAlert', handleSystemAlert);
+      socket.off('hostTransferred', handleHostTransferred);
+    };
+  }, [socket]);
 
   // Morning banner effect handled globally by server gameState changes
 
@@ -149,15 +179,24 @@ export default function GameArena({
 
   return (
     <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center p-4">
-      {/* Host Controls Toggle Button */}
-      {localPlayer?.isHost && (
+      {/* Top-Left Layout Container */}
+      <div className="absolute top-4 left-4 z-50 flex flex-col gap-2">
         <button
-          onClick={() => setShowHostControls(prev => !prev)}
-          className="fixed top-4 left-4 z-[40] retro-btn retro-btn-white px-3 py-2 text-[8px] md:text-[9px] tracking-wider font-bold cursor-pointer pixel-font"
+          onClick={() => setShowLeaveModal(true)}
+          className="retro-btn retro-btn-red px-3 py-2 text-xs md:text-sm lg:text-base tracking-wider font-bold cursor-pointer pixel-font"
         >
-          HOST CONTROLS
+          LEAVE GAME
         </button>
-      )}
+
+        {localPlayer?.isHost && (
+          <button
+            onClick={() => setShowHostControls(prev => !prev)}
+            className="retro-btn retro-btn-white px-3 py-2 text-xs md:text-sm lg:text-base tracking-wider font-bold cursor-pointer pixel-font"
+          >
+            HOST CONTROLS
+          </button>
+        )}
+      </div>
 
       {/* Host Controls Slide-Out Panel */}
       <AnimatePresence>
@@ -191,12 +230,22 @@ export default function GameArena({
                       </span>
                     </div>
                     {!p.isHost && (
-                      <button
-                        onClick={() => socket.emit('kickPlayer', { targetPlayerId: p.id })}
-                        className="retro-btn retro-btn-red px-1.5 py-0.5 text-[6px] font-black uppercase tracking-wider cursor-pointer"
-                      >
-                        KICK
-                      </button>
+                      <div className="flex gap-1.5">
+                        {p.connected !== false && (
+                          <button
+                            onClick={() => socket.emit('transferHost', { targetPlayerId: p.id })}
+                            className="retro-btn bg-yellow-500 hover:bg-yellow-400 text-black px-1.5 py-0.5 text-[6px] font-black uppercase tracking-wider cursor-pointer"
+                          >
+                            MAKE HOST
+                          </button>
+                        )}
+                        <button
+                          onClick={() => socket.emit('kickPlayer', { targetPlayerId: p.id })}
+                          className="retro-btn retro-btn-red px-1.5 py-0.5 text-[6px] font-black uppercase tracking-wider cursor-pointer"
+                        >
+                          KICK
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -213,6 +262,85 @@ export default function GameArena({
               <p className="text-[6px] text-gray-500 text-center mt-2 leading-normal uppercase">
                 Use if timer or phase transition gets stuck.
               </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Leave Game Confirmation Modal */}
+      <AnimatePresence>
+        {showLeaveModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLeaveModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative bg-black/90 border-4 border-red-600 p-6 md:p-8 max-w-sm w-full mx-4 shadow-[8px_8px_0_rgba(0,0,0,0.8)] z-10 text-center pixel-font"
+            >
+              <h2 className="text-red-500 text-xs md:text-sm font-bold uppercase tracking-wider mb-4 leading-relaxed">
+                ARE YOU SURE YOU WANT TO LEAVE? YOU CANNOT JOIN BACK.
+              </h2>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+                <button
+                  onClick={() => setShowLeaveModal(false)}
+                  className="retro-btn retro-btn-white px-4 py-2.5 text-[9px] md:text-xs font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={() => {
+                    socket.emit('leaveRoom', { roomCode: roomState?.roomCode });
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    socket.disconnect();
+                    window.location.reload();
+                  }}
+                  className="retro-btn retro-btn-red px-4 py-2.5 text-[9px] md:text-xs font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  CONFIRM
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Alerts system - systemAlert Toast */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] bg-black/95 border-4 border-red-600 text-red-500 px-6 py-3 font-mono text-[9px] md:text-xs font-bold tracking-wider uppercase pixel-font shadow-[0_0_15px_rgba(220,38,38,0.5)] flex items-center justify-center text-center"
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Alerts system - hostTransferred Banner */}
+      <AnimatePresence>
+        {showHostBanner && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center pointer-events-none"
+          >
+            <div className="bg-black border-4 border-yellow-500 px-8 py-6 text-center shadow-[0_0_30px_rgba(234,179,8,0.6)]">
+              <h1 className="text-xl md:text-3xl font-black text-yellow-400 uppercase tracking-widest pixel-font animate-pulse">
+                YOU ARE NOW THE HOST
+              </h1>
             </div>
           </motion.div>
         )}
@@ -240,7 +368,7 @@ export default function GameArena({
 
       {/* Cinematic Reveal Banner Overlay */}
       {(gameState === 'MORNING_REVEAL' || gameState === 'LYNCH_REVEAL') && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center select-none">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center select-none">
           {/* CRT overlay elements */}
           <div className="crt-scanlines crt-flicker"></div>
           <div className="crt-light-roll"></div>
@@ -388,7 +516,7 @@ export default function GameArena({
               LOBBY ROSTER
             </h3>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 overflow-y-auto max-h-[45vh] pr-1">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:gap-4 overflow-y-auto max-h-[45vh] pr-1">
               {players.map((player) => {
                 const playerIsLocal = player.id === localPlayerId;
                 const playerIsAlive = player.isAlive !== false;
@@ -449,7 +577,7 @@ export default function GameArena({
 
                     {/* Player Details */}
                     <div className="flex-1 w-full min-w-0 flex flex-col items-center">
-                      <p className={`text-xs md:text-sm uppercase tracking-wider truncate font-mono ${
+                      <p className={`text-xs md:text-sm lg:text-base uppercase tracking-wider truncate font-mono ${
                         !playerIsAlive ? 'line-through text-gray-600' : 'text-white'
                       }`}>
                         {player.name}
@@ -472,20 +600,20 @@ export default function GameArena({
                             e.stopPropagation(); // prevent double emission from card click
                             socket.emit('updateVote', { targetId: player.id });
                           }}
-                          className="retro-btn retro-btn-red px-2 py-1 text-[8px] font-bold uppercase tracking-wider cursor-pointer animate-pulse"
+                          className="retro-btn retro-btn-red px-2 py-1 text-xs md:text-sm lg:text-base font-bold uppercase tracking-wider cursor-pointer animate-pulse"
                         >
                           VOTE
                         </button>
                       )}
 
                       {gameState === 'VOTING' && roomState?.dayVotes?.[localPlayerId] === player.id && (
-                        <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest animate-pulse">
+                        <span className="text-xs md:text-sm lg:text-base text-green-500 font-bold uppercase tracking-widest animate-pulse">
                           VOTED
                         </span>
                       )}
 
                       {gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && roomState?.mafiaVotes?.[localPlayerId] === player.id && (
-                        <span className="text-[8px] text-red-500 font-bold uppercase tracking-widest animate-pulse">
+                        <span className="text-xs md:text-sm lg:text-base text-red-500 font-bold uppercase tracking-widest animate-pulse">
                           TARGETED
                         </span>
                       )}
@@ -553,7 +681,7 @@ export default function GameArena({
                     <span className="text-[9px] text-yellow-400 uppercase tracking-wider font-bold">
                       DAY DISCUSSION CHAT:
                     </span>
-                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-400 overflow-y-auto max-h-[22vh]">
+                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-400 overflow-y-auto max-h-[30vh] md:max-h-[50vh]">
                       {(roomState?.dayChatLogs || []).map((log) => (
                         <p key={log.id} className="mb-1 leading-normal">
                           {log.text}
@@ -593,7 +721,7 @@ export default function GameArena({
                     <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
                       SYSTEM ACTION LOG:
                     </span>
-                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-500 overflow-y-auto max-h-[25vh]">
+                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-500 overflow-y-auto max-h-[30vh] md:max-h-[50vh]">
                       {systemLogs.map((log) => (
                         <p key={log.id} className="mb-1 leading-normal">
                           {log.text}
@@ -634,7 +762,7 @@ export default function GameArena({
                   </span>
                   
                   {/* Mafia Private Chat */}
-                  <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-red-500 overflow-y-auto max-h-[22vh]">
+                  <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-red-500 overflow-y-auto max-h-[30vh] md:max-h-[50vh]">
                     {mafiaChatLogs.map((log) => (
                       <p key={log.id} className="mb-1 leading-normal">
                         {log.text}

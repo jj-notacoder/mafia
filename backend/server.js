@@ -829,7 +829,8 @@ io.on('connection', (socket) => {
   });
 
   // Event: TRANSFER HOST (Host delegates to another user)
-  socket.on('transferHost', ({ targetId }) => {
+  socket.on('transferHost', ({ targetPlayerId, targetId }) => {
+    const finalTargetId = targetPlayerId || targetId;
     if (!currentRoomCode || !rooms[currentRoomCode]) return;
     const room = rooms[currentRoomCode];
     
@@ -839,7 +840,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const targetPlayer = room.players.find(p => p.id === targetId);
+    const targetPlayer = room.players.find(p => p.id === finalTargetId);
     if (!targetPlayer) {
       socket.emit('error', 'Target player not found');
       return;
@@ -851,6 +852,11 @@ io.on('connection', (socket) => {
     });
 
     console.log(`Host privileges transferred to ${targetPlayer.name} (${targetPlayer.socketId})`);
+    
+    if (targetPlayer.socketId) {
+      io.to(targetPlayer.socketId).emit('hostTransferred');
+    }
+    
     broadcastRoomState(currentRoomCode);
   });
 
@@ -1082,22 +1088,34 @@ io.on('connection', (socket) => {
         room.players.splice(index, 1);
         console.log(`Player ${player.name} left room ${code} manually.`);
         
-        // If they were the host, transfer host or delete room if empty
+        // Broadcast Alert
+        io.to(code).emit('systemAlert', `${player.name} has left the game.`);
+
+        // Auto-Host Transfer
         if (room.hostId === socket.id) {
-          const activePlayer = room.players.find(p => p.connected);
-          if (activePlayer) {
-            room.hostId = activePlayer.socketId;
+          const newHost = room.players.find(p => p.connected);
+          if (newHost) {
+            room.hostId = newHost.socketId;
             room.players.forEach(p => {
-              p.isHost = (p.id === activePlayer.id);
+              p.isHost = (p.id === newHost.id);
             });
-            broadcastRoomState(code);
+            io.to(newHost.socketId).emit('hostTransferred');
+            console.log(`Host automatically transferred to ${newHost.name}`);
           } else {
             delete rooms[code];
             clearRoomTimer(room);
+            socket.leave(code);
+            return;
           }
-        } else {
-          broadcastRoomState(code);
         }
+
+        // Mid-Game Win Condition Check
+        const isGameActive = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER_CIVILIANS' && room.gameState !== 'GAME_OVER_MAFIA';
+        if (isGameActive) {
+          checkWinConditions(room);
+        }
+
+        broadcastRoomState(code);
       }
       socket.leave(code);
     }
@@ -1115,6 +1133,16 @@ io.on('connection', (socket) => {
       if (player) {
         player.connected = false;
         console.log(`Player ${player.name} marked disconnected`);
+
+        // Broadcast Alert
+        io.to(currentRoomCode).emit('systemAlert', `${player.name} has left the game.`);
+
+        // Mid-Game Win Condition Check
+        const isGameActive = room.gameState !== 'LOBBY' && room.gameState !== 'GAME_OVER_CIVILIANS' && room.gameState !== 'GAME_OVER_MAFIA';
+        if (isGameActive) {
+          player.isAlive = false;
+          checkWinConditions(room);
+        }
       }
 
       // Check if all players in the room are disconnected
@@ -1124,7 +1152,20 @@ io.on('connection', (socket) => {
         clearRoomTimer(room);
         console.log(`Room ${currentRoomCode} deleted (all players disconnected)`);
       } else {
-        // Broadcast the updated state showing player disconnected
+        // Auto-Host Transfer
+        if (room.hostId === socket.id) {
+          const newHost = room.players.find(p => p.connected);
+          if (newHost) {
+            room.hostId = newHost.socketId;
+            room.players.forEach(p => {
+              p.isHost = (p.id === newHost.id);
+            });
+            io.to(newHost.socketId).emit('hostTransferred');
+            console.log(`Host automatically transferred to ${newHost.name} due to disconnect`);
+          }
+        }
+        
+        // Broadcast the updated state
         broadcastRoomState(currentRoomCode);
       }
     }
