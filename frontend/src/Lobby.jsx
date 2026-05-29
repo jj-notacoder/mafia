@@ -66,8 +66,8 @@ export default function Lobby({
     }
     setNameError('');
     const sanitizedCode = roomCode.toUpperCase().trim();
-    if (!sanitizedCode || sanitizedCode.length < 4) {
-      alert('INVALID ROOM CODE');
+    if (sanitizedCode.length < 4) {
+      setJoinError('INCORRECT CODE');
       return;
     }
     const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
@@ -133,12 +133,11 @@ export default function Lobby({
         </motion.p>
       </div>
 
-      {/* Lobby Form Card */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="w-full max-w-sm p-6 md:p-8 bg-black/85 backdrop-blur-[2px] pixel-container text-center flex flex-col gap-5 mt-2"
+        className="w-full max-w-sm p-6 md:p-8 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm text-center flex flex-col gap-5 mt-2"
       >
         <div className="flex flex-col gap-2">
           <label className="text-[10px] md:text-xs text-left text-gray-400 uppercase tracking-widest">

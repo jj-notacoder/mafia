@@ -381,6 +381,11 @@ function App() {
             roomState={roomState}
             setAudioPlaying={setIsAudioPlaying}
             playerId={playerId}
+            onLeaveRoom={() => {
+              setRoomCode('');
+              setScreen('LOBBY');
+              setRoomState(null);
+            }}
           />
         ) : (
           <GameArena

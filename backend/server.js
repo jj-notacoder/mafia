@@ -1071,6 +1071,38 @@ io.on('connection', (socket) => {
     broadcastRoomState(currentRoomCode);
   });
 
+  // Event: LEAVE ROOM (Manual exit)
+  socket.on('leaveRoom', ({ roomCode }) => {
+    const code = roomCode || currentRoomCode;
+    if (code && rooms[code]) {
+      const room = rooms[code];
+      const index = room.players.findIndex(p => p.socketId === socket.id);
+      if (index !== -1) {
+        const player = room.players[index];
+        room.players.splice(index, 1);
+        console.log(`Player ${player.name} left room ${code} manually.`);
+        
+        // If they were the host, transfer host or delete room if empty
+        if (room.hostId === socket.id) {
+          const activePlayer = room.players.find(p => p.connected);
+          if (activePlayer) {
+            room.hostId = activePlayer.socketId;
+            room.players.forEach(p => {
+              p.isHost = (p.id === activePlayer.id);
+            });
+            broadcastRoomState(code);
+          } else {
+            delete rooms[code];
+            clearRoomTimer(room);
+          }
+        } else {
+          broadcastRoomState(code);
+        }
+      }
+      socket.leave(code);
+    }
+  });
+
   // Event: DISCONNECT (Cleanup logic)
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);

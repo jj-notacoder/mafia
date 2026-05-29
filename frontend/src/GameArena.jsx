@@ -336,7 +336,7 @@ export default function GameArena({
       </AnimatePresence>
 
       {/* Main Game Interface (renders behind the overlay and appears once overlay fades) */}
-      <div className={`w-full max-w-5xl bg-black/85 backdrop-blur-[2px] border-4 border-gray-700 pixel-container text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative ${
+      <div className={`w-full max-w-5xl bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative ${
         (gameState === 'MORNING_REVEAL' || gameState === 'LYNCH_REVEAL') ? 'pointer-events-none select-none opacity-10 filter blur-md' : ''
       }`}>
         
@@ -383,7 +383,7 @@ export default function GameArena({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-[300px]">
           
           {/* Player Cards (takes 2 columns on medium screens) */}
-          <div className="md:col-span-2 border-4 border-gray-700 p-4 bg-black/40 flex flex-col gap-3">
+          <div className="md:col-span-2 p-4 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm flex flex-col gap-3">
             <h3 className="text-[10px] md:text-xs text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-2">
               LOBBY ROSTER
             </h3>
@@ -529,7 +529,7 @@ export default function GameArena({
           </div>
 
           {/* Dynamic Action Panel (takes 1 column) */}
-          <div className="border-4 border-gray-700 p-4 bg-black/40 flex flex-col gap-3 h-full justify-between">
+          <div className="p-4 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm flex flex-col gap-3 h-full justify-between">
             <div className="flex flex-col gap-3 flex-1 min-h-0">
               <h3 className="text-[10px] md:text-xs text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-2">
                 ACTION PANEL

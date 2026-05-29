@@ -10,6 +10,7 @@ export default function WaitingRoom({
   roomState,
   setAudioPlaying,
   playerId,
+  onLeaveRoom,
 }) {
 
   if (!roomState) return null;
@@ -55,8 +56,23 @@ export default function WaitingRoom({
     setAudioPlaying(false); // Stop music when the game begins
   };
 
+  const handleReturnToHomepage = () => {
+    socket.emit('leaveRoom', { roomCode });
+    if (onLeaveRoom) {
+      onLeaveRoom();
+    }
+  };
+
   return (
     <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-between px-4 py-6 relative">
+      
+      {/* Return to Homepage Escape Button */}
+      <button
+        onClick={handleReturnToHomepage}
+        className="absolute top-4 left-4 bg-red-600 text-white font-bold border-2 border-red-400 border-b-4 border-r-4 border-b-red-800 border-r-red-800 active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] px-4 py-2 text-xs transition-all cursor-pointer pixel-font z-[100]"
+      >
+        RETURN TO HOMEPAGE
+      </button>
       
       {/* Top Header section */}
       <div className="flex flex-col items-center justify-center text-center mt-2">
@@ -79,7 +95,7 @@ export default function WaitingRoom({
       >
         
         {/* Left Column: Player List */}
-        <div className="flex-1 p-5 bg-black/85 backdrop-blur-[2px] pixel-container flex flex-col gap-4">
+        <div className="flex-1 p-5 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm flex flex-col gap-4">
           <div className="border-b border-white pb-3 flex justify-between items-center">
             <span className="text-[10px] md:text-xs text-gray-400 tracking-widest uppercase">
               CONNECTED ROSTER:
@@ -164,7 +180,7 @@ export default function WaitingRoom({
         </div>
 
         {/* Middle Column: Avatar Selection */}
-        <div className="flex-[1.5] p-5 bg-black/85 backdrop-blur-[2px] pixel-container flex flex-col gap-4 min-h-[300px]">
+        <div className="flex-[1.5] p-5 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm flex flex-col gap-4 min-h-[300px]">
           <div className="border-b border-white pb-3">
             <span className="text-[10px] md:text-xs text-gray-400 tracking-widest uppercase">
               SELECT YOUR AVATAR:
@@ -222,7 +238,7 @@ export default function WaitingRoom({
         </div>
 
         {/* Right Column: Game Settings */}
-        <div className="flex-1 p-5 bg-black/85 backdrop-blur-[2px] pixel-container flex flex-col gap-5">
+        <div className="flex-1 p-5 bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm flex flex-col gap-5">
           <div className="border-b border-white pb-3">
             <span className="text-[10px] md:text-xs text-gray-400 tracking-widest uppercase">
               LOBBY SETTINGS:
