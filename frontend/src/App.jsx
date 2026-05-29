@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import Lobby from './Lobby';
 import WaitingRoom from './WaitingRoom';
 import GameArena from './GameArena';
+import { AnimatePresence } from 'framer-motion';
+import InstructionsModal from './InstructionsModal';
 
 const socket = io('https://mafia-back.onrender.com', {
   autoConnect: true,
@@ -26,6 +28,7 @@ function App() {
   const [isJoining, setIsJoining] = useState(false);
   const [roomState, setRoomState] = useState(null);
   const [kickedAlert, setKickedAlert] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   
   // Media states (defaulting to true)
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
@@ -350,6 +353,14 @@ function App() {
         v1.0.0 - Trust No One
       </div>
 
+      {/* Global Instructions Toggle Button */}
+      <button
+        onClick={() => setShowInstructions(true)}
+        className="fixed top-4 right-4 z-[100] px-3 py-1 bg-gray-800/80 border border-gray-600 text-gray-300 text-xs font-bold uppercase tracking-widest backdrop-blur-md hover:bg-gray-700 hover:text-white transition-all cursor-pointer pixel-font"
+      >
+        [ ? ] INSTRUCTIONS
+      </button>
+
       {/* Conditional Screen Rendering Engine */}
       <div className="relative z-10 w-full flex-1 flex flex-col">
         {screen === 'LOBBY' ? (
@@ -381,6 +392,12 @@ function App() {
           />
         )}
       </div>
+
+      <AnimatePresence>
+        {showInstructions && (
+          <InstructionsModal closeModal={() => setShowInstructions(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
