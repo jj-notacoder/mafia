@@ -19,6 +19,7 @@ export default function GameArena({
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [showHostBanner, setShowHostBanner] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Extract values from roomState
   const gameState = roomState ? roomState.gameState : 'LOBBY';
@@ -178,25 +179,68 @@ export default function GameArena({
   // Vote checking helper variables
 
   return (
-    <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center p-4">
-      {/* Top-Left Layout Container */}
-      <div className="absolute top-4 left-4 z-50 flex flex-col gap-2">
-        <button
-          onClick={() => setShowLeaveModal(true)}
-          className="retro-btn retro-btn-red px-3 py-2 text-xs md:text-sm lg:text-base tracking-wider font-bold cursor-pointer pixel-font"
-        >
-          LEAVE GAME
-        </button>
+    <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center pt-20 md:pt-24 p-4">
+      {/* Options/Menu Toggle Button */}
+      <button
+        onClick={() => setIsMenuOpen(!isMenuOpen)}
+        className="fixed top-4 left-4 z-[120] px-3 py-1 bg-gray-400 border-2 border-gray-200 border-b-4 border-r-4 border-b-gray-600 border-r-gray-600 text-black font-bold active:translate-y-[2px] active:translate-x-[2px] active:border-b-2 active:border-r-2 transition-all uppercase text-xs tracking-widest pixel-font cursor-pointer"
+      >
+        [ ☰ ] MENU
+      </button>
 
-        {localPlayer?.isHost && (
-          <button
-            onClick={() => setShowHostControls(prev => !prev)}
-            className="retro-btn retro-btn-white px-3 py-2 text-xs md:text-sm lg:text-base tracking-wider font-bold cursor-pointer pixel-font"
-          >
-            HOST CONTROLS
-          </button>
+      {/* The Collapsible Game Menu Overlay */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <>
+            {/* Backdrop click-away listener */}
+            <div
+              className="fixed inset-0 z-[115]"
+              onClick={() => setIsMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed top-14 left-4 z-[120] w-56 p-4 bg-black/90 backdrop-blur-md border-2 border-gray-700 shadow-[8px_8px_0_rgba(0,0,0,0.8)] rounded-sm flex flex-col gap-4 transition-all origin-top-left pixel-font"
+            >
+              {/* Menu Title and Close Button */}
+              <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">OPTIONS</span>
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="text-gray-400 hover:text-white font-bold text-xs"
+                >
+                  [X]
+                </button>
+              </div>
+
+              {/* Leave Game Button (Universally accessible) */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setShowLeaveModal(true);
+                }}
+                className="retro-btn retro-btn-red w-full py-2 text-xs md:text-sm lg:text-base font-bold tracking-widest uppercase cursor-pointer"
+              >
+                LEAVE GAME
+              </button>
+
+              {/* Host Controls Toggle (Conditionally rendered for Host only) */}
+              {localPlayer?.isHost && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setShowHostControls(prev => !prev);
+                  }}
+                  className="retro-btn retro-btn-white w-full py-2 text-xs md:text-sm lg:text-base font-bold tracking-widest uppercase cursor-pointer"
+                >
+                  {showHostControls ? "CLOSE HOST" : "HOST CONTROLS"}
+                </button>
+              )}
+            </motion.div>
+          </>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* Host Controls Slide-Out Panel */}
       <AnimatePresence>
@@ -270,15 +314,7 @@ export default function GameArena({
       {/* Leave Game Confirmation Modal */}
       <AnimatePresence>
         {showLeaveModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLeaveModal(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80">
             {/* Modal Content */}
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -292,7 +328,7 @@ export default function GameArena({
               <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                 <button
                   onClick={() => setShowLeaveModal(false)}
-                  className="retro-btn retro-btn-white px-4 py-2.5 text-[9px] md:text-xs font-bold uppercase tracking-wider cursor-pointer"
+                  className="retro-btn retro-btn-white px-4 py-2.5 text-xs md:text-sm lg:text-base font-bold uppercase tracking-wider cursor-pointer"
                 >
                   CANCEL
                 </button>
@@ -304,7 +340,7 @@ export default function GameArena({
                     socket.disconnect();
                     window.location.reload();
                   }}
-                  className="retro-btn retro-btn-red px-4 py-2.5 text-[9px] md:text-xs font-bold uppercase tracking-wider cursor-pointer"
+                  className="retro-btn retro-btn-red px-4 py-2.5 text-xs md:text-sm lg:text-base font-bold uppercase tracking-wider cursor-pointer"
                 >
                   CONFIRM
                 </button>
@@ -464,7 +500,7 @@ export default function GameArena({
       </AnimatePresence>
 
       {/* Main Game Interface (renders behind the overlay and appears once overlay fades) */}
-      <div className={`w-full max-w-5xl bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative ${
+      <div className={`z-10 w-full max-w-5xl bg-black/70 backdrop-blur-md border border-gray-600 shadow-[8px_8px_0_rgba(0,0,0,0.8),_inset_1px_1px_0_rgba(255,255,255,0.2)] rounded-sm text-white p-5 flex flex-col gap-5 overflow-y-auto max-h-[85vh] relative ${
         (gameState === 'MORNING_REVEAL' || gameState === 'LYNCH_REVEAL') ? 'pointer-events-none select-none opacity-10 filter blur-md' : ''
       }`}>
         
