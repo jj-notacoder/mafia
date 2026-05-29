@@ -23,6 +23,14 @@ app.get('/health', (req, res) => {
   res.send('Awake');
 });
 
+// Static list of available avatar IDs
+const AVAILABLE_AVATAR_IDS = [
+  '007', '3yes', 'Boo-nary', 'Ceenan', 'Cyber-Blade',
+  'E-Ninja', 'Echo-Phantom', 'GGs', 'Glitch-Ghost', 'Ice-Knight',
+  'Iron-Thor', 'JohnKiryakou', 'KittyKat', 'Nano-Hawk', 'Neon-Viper',
+  'Plasma-Indian', 'Pulse-Witch', 'Tin-Grid', 'WizOZ'
+];
+
 // In-memory database of room objects
 const rooms = {};
 const roomIntervals = {};
@@ -597,6 +605,18 @@ io.on('connection', (socket) => {
     currentPlayerName = playerName;
     currentRoomCode = code;
 
+    // Check if the requested avatarId is already taken by someone in that room
+    let finalAvatarId = avatarId;
+    const takenAvatars = room.players.map(p => p.avatarId).filter(Boolean);
+    if (finalAvatarId && takenAvatars.includes(finalAvatarId)) {
+      const unusedAvatars = AVAILABLE_AVATAR_IDS.filter(id => !takenAvatars.includes(id));
+      if (unusedAvatars.length > 0) {
+        finalAvatarId = unusedAvatars[Math.floor(Math.random() * unusedAvatars.length)];
+      } else {
+        finalAvatarId = null;
+      }
+    }
+
     const newPlayer = {
       id: playerId,
       socketId: socket.id,
@@ -605,7 +625,7 @@ io.on('connection', (socket) => {
       isAlive: true,
       isHost: false,
       connected: true,
-      avatarId: avatarId || null,
+      avatarId: finalAvatarId || null,
     };
 
     room.players.push(newPlayer);
@@ -842,13 +862,14 @@ io.on('connection', (socket) => {
     // Check if the gameState is a Game Over state
     if (room.gameState === 'GAME_OVER_CIVILIANS' || room.gameState === 'GAME_OVER_MAFIA') {
       // Reset player states but keep players list
-      room.players = room.players.map(p => ({
-        ...p,
-        role: null,
-        isAlive: true,
-        hasVotedFor: null,
-        avatarId: null,
-      }));
+      room.players = room.players.map(player => {
+        return {
+          ...player,          // Keeps their existing playerId, socketId, name, and crucially, avatarId
+          role: null,         // Wipes the old role
+          isAlive: true,      // Resurrects them
+          hasVotedFor: null   // Clears old votes
+        };
+      });
 
       // Reset game states
       room.gameState = 'LOBBY';
@@ -870,12 +891,14 @@ io.on('connection', (socket) => {
       console.log(`Room ${currentRoomCode} reset to LOBBY via playAgain by socket ${socket.id}`);
       
       // Broadcast updated state to all clients in the room
+      io.to(currentRoomCode).emit('gameStateUpdated', room);
       broadcastRoomState(currentRoomCode);
     }
   });
 
   // Event: SELECT AVATAR (Player claims a character avatar)
-  socket.on('selectAvatar', ({ roomId, playerId, avatarId }) => {
+  socket.on('selectAvatar', ({ roomId, playerId, avatarId, newAvatarId }) => {
+    const targetAvatarId = newAvatarId || avatarId;
     const code = roomId || currentRoomCode;
     if (!code || !rooms[code]) return;
     const room = rooms[code];
@@ -884,14 +907,14 @@ io.on('connection', (socket) => {
     if (!player) return;
 
     // Check if another player has already selected this avatarId in the room
-    const isAlreadyClaimed = room.players.some(p => p.id !== player.id && p.avatarId === avatarId);
+    const isAlreadyClaimed = room.players.some(p => p.avatarId === targetAvatarId && p.id !== playerId);
     if (isAlreadyClaimed) {
-      socket.emit('error', 'Avatar is already selected by another player');
+      socket.emit('error', 'Avatar already claimed by another player');
       return;
     }
 
-    player.avatarId = avatarId;
-    console.log(`Player ${player.name} selected avatar: ${avatarId}`);
+    player.avatarId = targetAvatarId;
+    console.log(`Player ${player.name} selected avatar: ${targetAvatarId}`);
 
     // Broadcast state update immediately to all clients in the room (sanitized)
     broadcastRoomState(code);
@@ -1015,13 +1038,14 @@ io.on('connection', (socket) => {
     }
 
     // Reset player states
-    room.players = room.players.map(p => ({
-      ...p,
-      role: null,
-      isAlive: true,
-      hasVotedFor: null,
-      avatarId: null,
-    }));
+    room.players = room.players.map(player => {
+      return {
+        ...player,          // Keeps their existing playerId, socketId, name, and crucially, avatarId
+        role: null,         // Wipes the old role
+        isAlive: true,      // Resurrects them
+        hasVotedFor: null   // Clears old votes
+      };
+    });
 
     // Reset game states
     room.gameState = 'LOBBY';
@@ -1043,6 +1067,7 @@ io.on('connection', (socket) => {
     console.log(`Room ${currentRoomCode} reset to LOBBY by host`);
     
     // Broadcast updated state to all clients in the room
+    io.to(currentRoomCode).emit('gameStateUpdated', room);
     broadcastRoomState(currentRoomCode);
   });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AVATARS } from './avatars';
 
@@ -17,6 +17,27 @@ export default function WaitingRoom({
   // Determine if the current client is the host of this lobby
   const localPlayer = roomState.players.find(p => p.id === playerId);
   const isHost = localPlayer?.isHost;
+
+  // Fallback safety: Auto-assign avatar if the current player has none
+  useEffect(() => {
+    if (!roomState || !roomState.players) return;
+    const currentPlayer = roomState.players.find(p => p.id === playerId);
+    if (currentPlayer && !currentPlayer.avatarId) {
+      const claimedAvatarIds = roomState.players.map(p => p.avatarId).filter(Boolean);
+      const freeAvatars = availableAvatars.filter(a => !claimedAvatarIds.includes(a.id));
+      const pool = freeAvatars.length > 0 ? freeAvatars : availableAvatars;
+      const randomAvatar = pool[Math.floor(Math.random() * pool.length)];
+      if (randomAvatar) {
+        socket.emit('selectAvatar', {
+          roomCode,
+          roomId: roomCode,
+          playerId,
+          newAvatarId: randomAvatar.id,
+          avatarId: randomAvatar.id
+        });
+      }
+    }
+  }, [roomState, playerId, roomCode, socket]);
 
   // Handle rule adjustments and emit changes back to the backend
   const handleSettingChange = (settingName, value) => {
@@ -154,7 +175,7 @@ export default function WaitingRoom({
             {availableAvatars.map((avatar) => {
               const claimedByPlayer = roomState.players.find(p => p.avatarId === avatar.id);
               const isClaimedBySelf = claimedByPlayer?.id === playerId;
-              const isClaimedByOther = claimedByPlayer && claimedByPlayer.id !== playerId;
+              const isClaimedByOther = roomState.players.some(p => p.avatarId === avatar.id && p.id !== playerId);
 
               return (
                 <div
@@ -172,7 +193,7 @@ export default function WaitingRoom({
                   }}
                   className={`relative border-2 p-1.5 flex flex-col items-center justify-center gap-1 transition-all ${
                     isClaimedBySelf ? 'ring-4 ring-green-500 border-green-500 bg-green-950/20' : 
-                    isClaimedByOther ? 'grayscale opacity-50 cursor-not-allowed bg-black/80 border-red-950' : 
+                    isClaimedByOther ? 'opacity-50 grayscale cursor-not-allowed pointer-events-none bg-black/80 border-red-950' : 
                     'border-gray-800 bg-black/60 cursor-pointer hover:border-yellow-500'
                   }`}
                 >
@@ -191,7 +212,7 @@ export default function WaitingRoom({
                   )}
                   {isClaimedByOther && (
                     <div className="absolute top-0 right-0 bg-red-800 text-white text-[5px] px-1 font-bold truncate max-w-full">
-                      {claimedByPlayer.name}
+                      TAKEN
                     </div>
                   )}
                 </div>
