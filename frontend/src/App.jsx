@@ -342,7 +342,7 @@ function App() {
       {/* Global Sound Control Button */}
       <button
         onClick={toggleSound}
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 classic-win95-btn px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font"
+        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font border-2 border-gray-600 border-b-4 border-r-4 bg-gray-900/90 text-gray-300 hover:bg-gray-800 active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] transition-all"
       >
         <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
         SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
@@ -356,7 +356,7 @@ function App() {
       {/* Global Instructions Toggle Button */}
       <button
         onClick={() => setShowInstructions(true)}
-        className="fixed top-4 right-4 z-[100] px-3 py-1 bg-gray-800/80 border border-gray-600 text-gray-300 text-xs font-bold uppercase tracking-widest backdrop-blur-md hover:bg-gray-700 hover:text-white transition-all cursor-pointer pixel-font"
+        className="fixed top-4 right-4 z-[100] px-3 py-1 bg-gray-900/90 border-2 border-gray-600 border-b-4 border-r-4 text-gray-300 text-xs font-bold uppercase tracking-widest backdrop-blur-md hover:bg-gray-800 hover:text-white transition-all cursor-pointer pixel-font active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px]"
       >
         [ ? ] INSTRUCTIONS
       </button>

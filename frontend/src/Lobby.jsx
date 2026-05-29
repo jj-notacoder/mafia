@@ -14,6 +14,7 @@ export default function Lobby({
 }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   // Listen to socket error event locally to display error below the input field for 3s
   useEffect(() => {
@@ -43,9 +44,10 @@ export default function Lobby({
   const handleCreateRoom = (e) => {
     e.preventDefault();
     if (!playerName.trim()) {
-      alert('PLAYER NAME IS REQUIRED');
+      setNameError('PLEASE ENTER THE NAME FIRST.');
       return;
     }
+    setNameError('');
     const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
     console.log('Action: EMIT createRoom', { playerName, playerId, avatarId: randomAvatar.id });
     socket.emit('createRoom', { 
@@ -59,9 +61,10 @@ export default function Lobby({
   const handleConfirmJoin = (e) => {
     e.preventDefault();
     if (!playerName.trim()) {
-      alert('PLAYER NAME IS REQUIRED');
+      setNameError('PLEASE ENTER THE NAME FIRST.');
       return;
     }
+    setNameError('');
     const sanitizedCode = roomCode.toUpperCase().trim();
     if (!sanitizedCode || sanitizedCode.length < 4) {
       alert('INVALID ROOM CODE');
@@ -144,12 +147,21 @@ export default function Lobby({
           <input
             type="text"
             value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
+            onChange={(e) => {
+              setPlayerName(e.target.value);
+              if (e.target.value.trim()) setNameError('');
+            }}
             placeholder="ENTER_NAME_"
             maxLength={12}
             className="bg-black text-white px-4 py-3 text-center uppercase tracking-wider text-xs md:text-sm font-mono pixel-input"
           />
         </div>
+
+        {nameError && (
+          <div className="bg-red-600/80 border-2 border-red-800 text-white font-bold p-2 text-center uppercase mb-1 text-[9px] md:text-[10px] animate-pulse">
+            {nameError}
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {!isJoining ? (
