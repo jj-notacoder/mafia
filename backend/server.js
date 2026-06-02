@@ -199,40 +199,83 @@ function transitionToRoleReveal(room) {
 }
 
 function transitionToNightMafia(room) {
-  room.gameState = 'NIGHT_MAFIA';
   room.mafiaVotes = {};
   room.doctorSave = null;
-  room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Night fell; Mafia turn active.' });
 
-  const duration = room.settings?.night || 45;
-  startRoomTimer(room.roomCode, duration, (r) => {
-    transitionToNightDoctor(r);
-  });
+  if (room.isOfflineMode) {
+    room.gameState = 'NIGHT_MAFIA_BUFFER';
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Night fell; get ready.' });
+    broadcastRoomState(room.roomCode);
+
+    startRoomTimer(room.roomCode, 3, (r) => {
+      r.gameState = 'NIGHT_MAFIA';
+      r.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Mafia turn active.' });
+      const duration = r.settings?.night || 45;
+      startRoomTimer(r.roomCode, duration, (r2) => {
+        transitionToNightDoctor(r2);
+      });
+    });
+  } else {
+    room.gameState = 'NIGHT_MAFIA';
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Night fell; Mafia turn active.' });
+
+    const duration = room.settings?.night || 45;
+    startRoomTimer(room.roomCode, duration, (r) => {
+      transitionToNightDoctor(r);
+    });
+  }
 }
 
 function transitionToNightDoctor(room) {
-  room.gameState = 'NIGHT_DOCTOR';
   room.doctorSave = null;
-  room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Doctor turn active.' });
 
-  const doctorAlive = room.players.some(p => p.role === 'DOCTOR' && p.isAlive);
+  if (room.isOfflineMode) {
+    room.gameState = 'NIGHT_DOCTOR_BUFFER';
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Doctor prep active.' });
+    broadcastRoomState(room.roomCode);
 
-  if (doctorAlive) {
-    // Notify Doctor player
-    const doctor = room.players.find(p => p.role === 'DOCTOR' && p.isAlive);
-    if (doctor && doctor.socketId) {
-      io.to(doctor.socketId).emit('doctorTurn');
-    }
-    
-    startRoomTimer(room.roomCode, 15, (r) => {
-      transitionToMorningReveal(r);
+    startRoomTimer(room.roomCode, 3, (r) => {
+      r.gameState = 'NIGHT_DOCTOR';
+      r.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Doctor turn active.' });
+      const doctorAlive = r.players.some(p => p.role === 'DOCTOR' && p.isAlive);
+      if (doctorAlive) {
+        const doctor = r.players.find(p => p.role === 'DOCTOR' && p.isAlive);
+        if (doctor && doctor.socketId) {
+          io.to(doctor.socketId).emit('doctorTurn');
+        }
+        startRoomTimer(r.roomCode, 15, (r2) => {
+          transitionToMorningReveal(r2);
+        });
+      } else {
+        const fakeDelaySeconds = Math.floor(Math.random() * 4) + 3;
+        startRoomTimer(r.roomCode, fakeDelaySeconds, (r2) => {
+          transitionToMorningReveal(r2);
+        });
+      }
     });
   } else {
-    // Fake timeout: 3 to 6 seconds
-    const fakeDelaySeconds = Math.floor(Math.random() * 4) + 3;
-    startRoomTimer(room.roomCode, fakeDelaySeconds, (r) => {
-      transitionToMorningReveal(r);
-    });
+    room.gameState = 'NIGHT_DOCTOR';
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Doctor turn active.' });
+
+    const doctorAlive = room.players.some(p => p.role === 'DOCTOR' && p.isAlive);
+
+    if (doctorAlive) {
+      // Notify Doctor player
+      const doctor = room.players.find(p => p.role === 'DOCTOR' && p.isAlive);
+      if (doctor && doctor.socketId) {
+        io.to(doctor.socketId).emit('doctorTurn');
+      }
+      
+      startRoomTimer(room.roomCode, 15, (r) => {
+        transitionToMorningReveal(r);
+      });
+    } else {
+      // Fake timeout: 3 to 6 seconds
+      const fakeDelaySeconds = Math.floor(Math.random() * 4) + 3;
+      startRoomTimer(room.roomCode, fakeDelaySeconds, (r) => {
+        transitionToMorningReveal(r);
+      });
+    }
   }
 }
 
@@ -502,6 +545,7 @@ io.on('connection', (socket) => {
         }
       ],
       gameState: 'LOBBY',
+      isOfflineMode: false,
       settings: {
         night: 45,
         day: 240,
@@ -636,7 +680,7 @@ io.on('connection', (socket) => {
   });
 
   // Event: UPDATE SETTINGS (Host adjustments)
-  socket.on('updateSettings', ({ settings }) => {
+  socket.on('updateSettings', ({ settings, isOfflineMode }) => {
     if (!currentRoomCode || !rooms[currentRoomCode]) return;
     
     const room = rooms[currentRoomCode];
@@ -644,6 +688,10 @@ io.on('connection', (socket) => {
     if (room.hostId !== socket.id) {
       socket.emit('error', 'Unauthorized action detected.');
       return;
+    }
+
+    if (isOfflineMode !== undefined) {
+      room.isOfflineMode = !!isOfflineMode;
     }
 
     const requestedMafiaCount = settings.mafiaCount;
@@ -733,14 +781,19 @@ io.on('connection', (socket) => {
     });
 
     // 5. Update the game state and tell all tabs the game has started
-    room.gameState = 'ROLE_REVEAL';
-    
-    // This broadcasts the updated room data (with roles) to everyone
-    broadcastRoomState(code);
-    io.to(code).emit('gameStarted'); 
-
-    // Auto-transition timer starting for Role Reveal phase
-    transitionToRoleReveal(room);
+    if (room.isOfflineMode) {
+      room.gameState = 'STARTING';
+      broadcastRoomState(code);
+      io.to(code).emit('gameStarted');
+      startRoomTimer(code, 5, (r) => {
+        transitionToNightMafia(r);
+      });
+    } else {
+      room.gameState = 'ROLE_REVEAL';
+      broadcastRoomState(code);
+      io.to(code).emit('gameStarted'); 
+      transitionToRoleReveal(room);
+    }
   });
 
   // Event: UPDATE VOTE ACTION
@@ -976,7 +1029,7 @@ io.on('connection', (socket) => {
       const gameOver = checkWinConditions(room);
       if (!gameOver) {
         // 3. Re-verify active voting/target thresholds
-        if (room.gameState === 'NIGHT_MAFIA') {
+        if (room.gameState === 'NIGHT_MAFIA' || room.gameState === 'NIGHT_MAFIA_BUFFER') {
           // Remove votes of kicked players
           Object.keys(room.mafiaVotes).forEach(voterId => {
             if (!room.players.some(p => p.id === voterId && p.role === 'MAFIA' && p.isAlive)) {
@@ -987,7 +1040,7 @@ io.on('connection', (socket) => {
           const votes = aliveMafia.map(m => room.mafiaVotes[m.id]);
           const allVoted = votes.every(v => v !== undefined && v !== null);
           const unanimous = votes.every(v => v === votes[0]);
-          if (allVoted && unanimous && aliveMafia.length > 0) {
+          if (allVoted && unanimous && aliveMafia.length > 0 && room.gameState === 'NIGHT_MAFIA') {
             clearRoomTimer(room);
             transitionToNightDoctor(room);
           }

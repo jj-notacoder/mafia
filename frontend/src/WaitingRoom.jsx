@@ -47,7 +47,17 @@ export default function WaitingRoom({
       ...restSettings,
       [settingName]: value === 'auto' ? 'auto' : Number(value),
     };
-    socket.emit('updateSettings', { settings: updatedSettings });
+    socket.emit('updateSettings', { 
+      settings: updatedSettings,
+      isOfflineMode: roomState.isOfflineMode 
+    });
+  };
+
+  const handleOfflineModeToggle = (e) => {
+    socket.emit('updateSettings', {
+      settings: roomState.settings,
+      isOfflineMode: e.target.checked
+    });
   };
 
   // Start the game and pause the background loop
@@ -249,6 +259,17 @@ export default function WaitingRoom({
           <div className="flex flex-col gap-5 flex-1 justify-center">
             {isHost ? (
               <>
+                 {/* Setting: Offline Mode */}
+                <div className="flex items-center justify-between text-[10px] md:text-xs border-b border-gray-900 pb-2">
+                  <span className="text-white tracking-wider uppercase">OFFLINE MODE (IN-PERSON):</span>
+                  <input
+                    type="checkbox"
+                    checked={roomState.isOfflineMode || false}
+                    onChange={handleOfflineModeToggle}
+                    className="w-4 h-4 cursor-pointer accent-red-600 bg-gray-900 border border-gray-700 outline-none"
+                  />
+                </div>
+
                 {/* Setting: Night Phase */}
                 <div className="flex flex-col gap-2 text-left">
                   <div className="flex justify-between items-center text-[10px] md:text-xs">
@@ -324,6 +345,12 @@ export default function WaitingRoom({
               </>
             ) : (
               <div className="flex flex-col gap-4 text-[10px] md:text-xs tracking-widest uppercase text-left">
+                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
+                  <span className="text-gray-400">Offline Mode:</span>
+                  <span className="text-red-500 font-mono font-bold">
+                    {roomState.isOfflineMode ? 'ON (IN-PERSON)' : 'OFF'}
+                  </span>
+                </div>
                 <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
                   <span className="text-gray-400">Night Phase:</span>
                   <span className="text-red-500 font-mono font-bold">{roomState.settings.night}s</span>

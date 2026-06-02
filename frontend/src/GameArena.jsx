@@ -29,6 +29,45 @@ export default function GameArena({
   
   const chatEndRef = useRef(null);
 
+  const prevGameStateRef = useRef(null);
+
+  const playVoiceover = (text) => {
+    const currentPlayer = { playerId: localPlayerId };
+    const room = roomState;
+    if (!room || currentPlayer.playerId !== room.hostId || !room.isOfflineMode) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9; // Slightly slower for dramatic effect
+    utterance.pitch = 0.8; // Deeper, more serious tone
+    window.speechSynthesis.speak(utterance);
+  };
+
+  useEffect(() => {
+    if (!roomState || !roomState.isOfflineMode) return;
+
+    const currentGameState = roomState.gameState;
+    if (currentGameState === prevGameStateRef.current) return;
+    prevGameStateRef.current = currentGameState;
+
+    if (currentGameState === 'STARTING') {
+      playVoiceover("The game is starting. Everyone, close your eyes.");
+    } else if (currentGameState === 'NIGHT_MAFIA_BUFFER') {
+      playVoiceover("Mafia, open your eyes and select your target.");
+    } else if (currentGameState === 'NIGHT_DOCTOR_BUFFER') {
+      playVoiceover("Mafia, go to sleep. Doctor, open your eyes and select someone to save.");
+    } else if (currentGameState === 'MORNING_REVEAL') {
+      const killedId = roomState.nightResult?.killed;
+      if (killedId) {
+        const victim = roomState.players.find(p => p.id === killedId);
+        const name = victim ? victim.name : "Someone";
+        playVoiceover("Everyone, wake up. " + name + " was killed in the night.");
+      } else {
+        playVoiceover("Everyone, wake up. It was a quiet night; no one died.");
+      }
+    }
+  }, [roomState?.gameState, roomState?.nightResult?.killed, roomState?.isOfflineMode]);
+
   // Auto-scroll chat / logs to bottom
   useEffect(() => {
     if (chatEndRef.current) {
@@ -178,8 +217,23 @@ export default function GameArena({
 
   // Vote checking helper variables
 
+  const isNightBuffer = gameState === 'NIGHT_MAFIA_BUFFER' || gameState === 'NIGHT_DOCTOR_BUFFER';
+  const isOfflineStarting = gameState === 'STARTING' && !isRevealing;
+
+  const shouldBlackout = roomState?.isOfflineMode && (
+    isOfflineStarting ||
+    isNightBuffer ||
+    (gameState === 'NIGHT_MAFIA' && (role !== 'MAFIA' || !isAlive)) ||
+    (gameState === 'NIGHT_DOCTOR' && (role !== 'DOCTOR' || !isAlive))
+  );
+
   return (
     <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center pt-20 md:pt-24 p-4">
+      {shouldBlackout && (
+        <div className="fixed inset-0 z-[150] bg-black text-gray-500 flex items-center justify-center font-bold text-xl uppercase tracking-widest pixel-font">
+          CLOSE YOUR EYES
+        </div>
+      )}
       {/* Options/Menu Toggle Button */}
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -389,7 +443,7 @@ export default function GameArena({
         </div>
         <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
           PHASE: {
-            gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR' ? 'NIGHT' :
+            gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR' || gameState === 'NIGHT_MAFIA_BUFFER' || gameState === 'NIGHT_DOCTOR_BUFFER' ? 'NIGHT' :
             gameState === 'DAY' ? 'DAY (DISCUSS & VOTE)' : gameState
           }
         </div>
