@@ -323,20 +323,9 @@ function transitionToDay(room) {
   room.gameState = 'DAY';
   room.dayVotes = {};
   room.roundNumber = (room.roundNumber || 0) + 1;
-  room.systemLogs.push({ id: Date.now().toString(), text: `[SYSTEM] Day Discussion active for Round ${room.roundNumber}.` });
+  room.systemLogs.push({ id: Date.now().toString(), text: `[SYSTEM] Day Phase (Discuss & Vote) active for Round ${room.roundNumber}.` });
 
   const duration = room.settings?.day || 240;
-  startRoomTimer(room.roomCode, duration, (r) => {
-    transitionToVoting(r);
-  });
-}
-
-function transitionToVoting(room) {
-  room.gameState = 'VOTING';
-  room.dayVotes = {};
-  room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Discussion ended; Voting phase active.' });
-
-  const duration = room.settings?.voting || 30;
   startRoomTimer(room.roomCode, duration, (r) => {
     resolveVotingAndTransitionToReveal(r);
   });
@@ -405,6 +394,9 @@ function resolveVotingAndTransitionToReveal(room) {
   room.lynchRevealMessage = lynchMsg;
 
   room.dayVotes = {};
+  room.players.forEach(p => {
+    p.hasVotedFor = null;
+  });
 
   // Set buffer state
   room.gameState = 'LYNCH_REVEAL';
@@ -459,7 +451,7 @@ io.on('connection', (socket) => {
         transitionToNightDoctor(room);
       }
 
-    } else if (room.gameState === 'VOTING') {
+    } else if (room.gameState === 'DAY') {
       if (targetId && targetId !== 'SKIP') {
         const target = room.players.find(p => p.id === targetId);
         if (!target || !target.isAlive) {
@@ -468,6 +460,7 @@ io.on('connection', (socket) => {
         }
       }
       room.dayVotes[player.id] = targetId;
+      player.hasVotedFor = targetId;
       console.log(`Player ${player.name} updated vote to ${targetId}`);
 
       broadcastRoomState(currentRoomCode);
@@ -512,7 +505,6 @@ io.on('connection', (socket) => {
       settings: {
         night: 45,
         day: 240,
-        voting: 30,
         mafiaCount: 'auto',
       },
       timer: 0,
@@ -668,7 +660,6 @@ io.on('connection', (socket) => {
     room.settings = {
       night: Number(settings.night),
       day: Number(settings.day),
-      voting: Number(settings.voting),
       mafiaCount: settings.mafiaCount === 'auto' ? 'auto' : Number(settings.mafiaCount),
     };
 
@@ -789,6 +780,17 @@ io.on('connection', (socket) => {
 
   // Event: DAY VOTE ACTION (wrapper)
   socket.on('dayVote', ({ targetId }) => {
+    if (!currentRoomCode || !rooms[currentRoomCode]) return;
+    const room = rooms[currentRoomCode];
+    if (room.gameState !== 'DAY') return;
+    handleVoteUpdate(targetId);
+  });
+
+  // Event: CAST VOTE ACTION (specific listener for merged DAY phase)
+  socket.on('castVote', ({ targetId }) => {
+    if (!currentRoomCode || !rooms[currentRoomCode]) return;
+    const room = rooms[currentRoomCode];
+    if (room.gameState !== 'DAY') return;
     handleVoteUpdate(targetId);
   });
 
@@ -989,11 +991,16 @@ io.on('connection', (socket) => {
             clearRoomTimer(room);
             transitionToNightDoctor(room);
           }
-        } else if (room.gameState === 'VOTING') {
+        } else if (room.gameState === 'DAY') {
           // Remove votes of kicked players
           Object.keys(room.dayVotes).forEach(voterId => {
             if (!room.players.some(p => p.id === voterId && p.isAlive)) {
               delete room.dayVotes[voterId];
+            }
+          });
+          room.players.forEach(p => {
+            if (!p.isAlive) {
+              p.hasVotedFor = null;
             }
           });
           const alivePlayers = room.players.filter(p => p.isAlive);

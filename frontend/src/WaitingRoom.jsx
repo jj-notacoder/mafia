@@ -42,8 +42,9 @@ export default function WaitingRoom({
 
   // Handle rule adjustments and emit changes back to the backend
   const handleSettingChange = (settingName, value) => {
+    const { voting, votingTime, ...restSettings } = roomState.settings;
     const updatedSettings = {
-      ...roomState.settings,
+      ...restSettings,
       [settingName]: value === 'auto' ? 'auto' : Number(value),
     };
     socket.emit('updateSettings', { settings: updatedSettings });
@@ -268,7 +269,7 @@ export default function WaitingRoom({
                 {/* Setting: Day Phase */}
                 <div className="flex flex-col gap-2 text-left">
                   <div className="flex justify-between items-center text-[10px] md:text-xs">
-                    <span className="text-white tracking-wider uppercase">DAY TIMER:</span>
+                    <span className="text-white tracking-wider uppercase">Day Phase Time (Discuss & Vote):</span>
                     <span className="text-red-500 font-mono font-bold">{roomState.settings.day}s</span>
                   </div>
                   <input
@@ -278,23 +279,6 @@ export default function WaitingRoom({
                     step="10"
                     value={roomState.settings.day}
                     onChange={(e) => handleSettingChange('day', e.target.value)}
-                    className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
-                  />
-                </div>
-
-                {/* Setting: Voting Phase */}
-                <div className="flex flex-col gap-2 text-left">
-                  <div className="flex justify-between items-center text-[10px] md:text-xs">
-                    <span className="text-white tracking-wider uppercase">VOTING TIMER:</span>
-                    <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="90"
-                    step="5"
-                    value={roomState.settings.voting}
-                    onChange={(e) => handleSettingChange('voting', e.target.value)}
                     className="w-full cursor-pointer h-2 bg-gray-900 border border-gray-700 outline-none accent-red-600"
                   />
                 </div>
@@ -345,12 +329,8 @@ export default function WaitingRoom({
                   <span className="text-red-500 font-mono font-bold">{roomState.settings.night}s</span>
                 </div>
                 <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
-                  <span className="text-gray-400">Day Phase:</span>
+                  <span className="text-gray-400">Day Phase Time (Discuss & Vote):</span>
                   <span className="text-red-500 font-mono font-bold">{roomState.settings.day}s</span>
-                </div>
-                <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
-                  <span className="text-gray-400">Voting Phase:</span>
-                  <span className="text-red-500 font-mono font-bold">{roomState.settings.voting}s</span>
                 </div>
                 <div className="border-2 border-gray-800 p-3 bg-black/60 flex justify-between items-center">
                   <span className="text-gray-400">Mafia Count:</span>

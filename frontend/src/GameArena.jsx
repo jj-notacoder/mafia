@@ -388,7 +388,10 @@ export default function GameArena({
           ROUND: {roomState ? roomState.roundNumber || 1 : 1}
         </div>
         <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
-          PHASE: {gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR' ? 'NIGHT' : gameState}
+          PHASE: {
+            gameState === 'NIGHT_MAFIA' || gameState === 'NIGHT_DOCTOR' ? 'NIGHT' :
+            gameState === 'DAY' ? 'DAY (DISCUSS & VOTE)' : gameState
+          }
         </div>
         <div className="bg-black/90 border-4 border-yellow-400 text-yellow-400 px-3 md:px-4 py-2 font-mono text-[9px] md:text-sm font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)]">
           TIME: {roomState ? roomState.timer : 0}s
@@ -567,7 +570,7 @@ export default function GameArena({
                 const mafiaVotePct = totalAliveMafia > 0 ? (mafiaVotesReceived / totalAliveMafia) * 100 : 0;
 
                 const isCardClickable = isAlive && playerIsAlive && (
-                  (gameState === 'VOTING') ||
+                  (gameState === 'DAY') ||
                   (gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && player.role !== 'MAFIA')
                 );
 
@@ -630,7 +633,7 @@ export default function GameArena({
 
                     {/* Action Area */}
                     <div className="flex gap-2 justify-center items-center mt-1">
-                      {gameState === 'VOTING' && isAlive && playerIsAlive && roomState?.dayVotes?.[localPlayerId] !== player.id && (
+                      {gameState === 'DAY' && isAlive && playerIsAlive && roomState?.dayVotes?.[localPlayerId] !== player.id && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation(); // prevent double emission from card click
@@ -642,7 +645,7 @@ export default function GameArena({
                         </button>
                       )}
 
-                      {gameState === 'VOTING' && roomState?.dayVotes?.[localPlayerId] === player.id && (
+                      {gameState === 'DAY' && roomState?.dayVotes?.[localPlayerId] === player.id && (
                         <span className="text-xs md:text-sm lg:text-base text-green-500 font-bold uppercase tracking-widest animate-pulse">
                           VOTED
                         </span>
@@ -656,7 +659,7 @@ export default function GameArena({
                     </div>
 
                     {/* Live Vote Progress Bar during Day Voting */}
-                    {gameState === 'VOTING' && playerIsAlive && (
+                    {gameState === 'DAY' && playerIsAlive && (
                       <div className="w-full mt-1 text-left">
                         <div className="flex justify-between text-[7px] text-yellow-400 font-mono mb-0.5">
                           <span>VOTES RECEIVING</span>
@@ -711,7 +714,7 @@ export default function GameArena({
                   </p>
                 </div>
               ) : gameState === 'DAY' ? (
-                // Day Phase chat debate (shared by alive players and ghosts)
+                // Day Phase chat debate and voting action (shared by alive players and ghosts)
                 <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
                   <div className="flex flex-col gap-2 flex-1 min-h-0">
                     <span className="text-[9px] text-yellow-400 uppercase tracking-wider font-bold">
@@ -728,18 +731,37 @@ export default function GameArena({
                   </div>
 
                   {isAlive ? (
-                    <form onSubmit={handleSendDayMsg} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={dayChatMsg}
-                        onChange={(e) => setDayChatMsg(e.target.value)}
-                        placeholder="DISCUSS_"
-                        className="flex-1 bg-black border border-gray-700 text-white text-[9px] font-mono px-2 py-1 outline-none"
-                      />
-                      <button type="submit" className="retro-btn retro-btn-red text-[8px] font-bold px-3 uppercase">
-                        SEND
-                      </button>
-                    </form>
+                    <div className="flex flex-col gap-2">
+                      <form onSubmit={handleSendDayMsg} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={dayChatMsg}
+                          onChange={(e) => setDayChatMsg(e.target.value)}
+                          placeholder="DISCUSS_"
+                          className="flex-1 bg-black border border-gray-700 text-white text-[9px] font-mono px-2 py-1 outline-none"
+                        />
+                        <button type="submit" className="retro-btn retro-btn-red text-[8px] font-bold px-3 uppercase">
+                          SEND
+                        </button>
+                      </form>
+
+                      {/* Voting skip button for alive players only */}
+                      {roomState?.dayVotes?.[localPlayerId] !== 'SKIP' ? (
+                        <button
+                          type="button"
+                          onClick={() => socket.emit('updateVote', { targetId: 'SKIP' })}
+                          className="retro-btn retro-btn-white py-2 text-[9px] font-bold uppercase tracking-wider cursor-pointer w-full"
+                        >
+                          SKIP VOTE
+                        </button>
+                      ) : (
+                        <div className="flex flex-col items-center py-1">
+                          <span className="text-[9px] text-green-500 font-bold uppercase tracking-widest text-center animate-pulse">
+                            YOU VOTED TO SKIP
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="bg-gray-950 border border-gray-800 text-gray-500 text-[9px] font-mono py-2 text-center select-none uppercase tracking-widest">
                       GHOSTS CANNOT SPEAK
@@ -747,47 +769,7 @@ export default function GameArena({
                   )}
 
                   <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-2 leading-normal">
-                    Debate with other players and find the Mafia.
-                  </p>
-                </div>
-              ) : gameState === 'VOTING' ? (
-                // Voting Phase action logs (shared by alive and ghosts)
-                <div className="flex flex-col gap-2 flex-1 min-h-0 justify-between">
-                  <div className="flex flex-col gap-2 flex-1 min-h-0">
-                    <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">
-                      SYSTEM ACTION LOG:
-                    </span>
-                    <div className="flex-1 bg-black border-2 border-gray-800 p-2 font-mono text-[8px] md:text-[9px] text-green-500 overflow-y-auto max-h-[30vh] md:max-h-[50vh]">
-                      {systemLogs.map((log) => (
-                        <p key={log.id} className="mb-1 leading-normal">
-                          {log.text}
-                        </p>
-                      ))}
-                      <div ref={chatEndRef} />
-                    </div>
-                  </div>
-
-                  {/* Voting skip button for alive players only */}
-                  {isAlive && roomState?.dayVotes?.[localPlayerId] !== 'SKIP' && (
-                    <button
-                      onClick={() => socket.emit('updateVote', { targetId: 'SKIP' })}
-                      className="retro-btn retro-btn-white py-2 text-[9px] font-bold uppercase tracking-wider mt-2 cursor-pointer w-full"
-                    >
-                      SKIP VOTE
-                    </button>
-                  )}
-
-                  {/* Voted Skip label */}
-                  {isAlive && roomState?.dayVotes?.[localPlayerId] === 'SKIP' && (
-                    <div className="flex flex-col items-center mt-2">
-                      <span className="text-[9px] text-green-500 font-bold uppercase tracking-widest text-center animate-pulse">
-                        YOU VOTED TO SKIP
-                      </span>
-                    </div>
-                  )}
-
-                  <p className="text-[7px] text-gray-500 uppercase tracking-widest text-center mt-2 leading-normal">
-                    Select a player on the roster grid or click Skip to cast your vote.
+                    Debate with other players, cast votes, or skip.
                   </p>
                 </div>
               ) : gameState === 'NIGHT_MAFIA' && role === 'MAFIA' && isAlive ? (
