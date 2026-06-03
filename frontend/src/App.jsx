@@ -6,7 +6,11 @@ import GameArena from './GameArena';
 import { AnimatePresence } from 'framer-motion';
 import InstructionsModal from './InstructionsModal';
 
-const socket = io('https://mafia-back.onrender.com', {
+const backendUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:3001'
+  : 'https://mafia-back.onrender.com';
+
+const socket = io(backendUrl, {
   autoConnect: true,
 });
 
@@ -36,7 +40,7 @@ function App() {
 
   // Keep Render backend awake on initial page load
   useEffect(() => {
-    fetch('https://mafia-back.onrender.com/health')
+    fetch(`${backendUrl}/health`)
       .then((res) => res.text())
       .then((data) => console.log('[HEALTH] Render server response:', data))
       .catch((err) => console.warn('[HEALTH] Failed to ping Render server:', err));
