@@ -287,7 +287,11 @@ function checkWinConditions(room) {
 
   if (aliveMafia === 0) {
     room.gameState = 'GAME_OVER_CIVILIANS';
-    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game Over: Civilians win; all Mafia eliminated!' });
+    if (room.isOfflineMode) {
+      room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game over. Civilians win.' });
+    } else {
+      room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game Over: Civilians win; all Mafia eliminated!' });
+    }
     clearRoomTimer(room);
     broadcastRoomState(room.roomCode);
     return true;
@@ -295,7 +299,11 @@ function checkWinConditions(room) {
 
   if (aliveMafia >= aliveOthers) {
     room.gameState = 'GAME_OVER_MAFIA';
-    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game Over: Mafia wins; they outnumber the Town!' });
+    if (room.isOfflineMode) {
+      room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game over. Mafias won.' });
+    } else {
+      room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Game Over: Mafia wins; they outnumber the Town!' });
+    }
     clearRoomTimer(room);
     broadcastRoomState(room.roomCode);
     return true;
@@ -350,6 +358,17 @@ function transitionToMorningReveal(room) {
   // Set buffer state
   room.gameState = 'MORNING_REVEAL';
   room.morningRevealMessage = morningMsg;
+  if (room.isOfflineMode) {
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Doctor sleep. Everybody wake up.' });
+    if (killTargetId && room.nightResult?.killed) {
+      const victim = room.players.find(p => p.id === killTargetId);
+      if (victim) {
+        room.systemLogs.push({ id: (Date.now() + 1).toString(), text: `[SYSTEM] ${victim.name} died.` });
+      }
+    } else {
+      room.systemLogs.push({ id: (Date.now() + 1).toString(), text: '[SYSTEM] Nobody was killed.' });
+    }
+  }
   broadcastRoomState(room.roomCode);
 
   // Transition after 5 seconds
@@ -366,7 +385,11 @@ function transitionToDay(room) {
   room.gameState = 'DAY';
   room.dayVotes = {};
   room.roundNumber = (room.roundNumber || 0) + 1;
-  room.systemLogs.push({ id: Date.now().toString(), text: `[SYSTEM] Day Phase (Discuss & Vote) active for Round ${room.roundNumber}.` });
+  if (room.isOfflineMode) {
+    room.systemLogs.push({ id: Date.now().toString(), text: '[SYSTEM] Discuss and vote.' });
+  } else {
+    room.systemLogs.push({ id: Date.now().toString(), text: `[SYSTEM] Day Phase (Discuss & Vote) active for Round ${room.roundNumber}.` });
+  }
 
   const duration = room.settings?.day || 240;
   startRoomTimer(room.roomCode, duration, (r) => {
@@ -416,16 +439,30 @@ function resolveVotingAndTransitionToReveal(room) {
       if (victim.role === 'DOCTOR') roleText = 'the DOCTOR';
       
       lynchMsg = `${victim.name} was ${roleText}`;
-      room.systemLogs.push({
-        id: Date.now().toString(),
-        text: `[SYSTEM] Voting results: ${victim.name} was voted out and eliminated.`
-      });
+      if (room.isOfflineMode) {
+        room.systemLogs.push({
+          id: Date.now().toString(),
+          text: `[SYSTEM] ${victim.name} was voted out. Everybody sleep.`
+        });
+      } else {
+        room.systemLogs.push({
+          id: Date.now().toString(),
+          text: `[SYSTEM] Voting results: ${victim.name} was voted out and eliminated.`
+        });
+      }
     }
   } else {
-    room.systemLogs.push({
-      id: Date.now().toString(),
-      text: '[SYSTEM] Voting results: No one was eliminated due to a tie or skip majority.'
-    });
+    if (room.isOfflineMode) {
+      room.systemLogs.push({
+        id: Date.now().toString(),
+        text: '[SYSTEM] Nobody was voted out. Everybody sleep.'
+      });
+    } else {
+      room.systemLogs.push({
+        id: Date.now().toString(),
+        text: '[SYSTEM] Voting results: No one was eliminated due to a tie or skip majority.'
+      });
+    }
   }
 
   // Save lynch result
@@ -783,6 +820,7 @@ io.on('connection', (socket) => {
     // 5. Update the game state and tell all tabs the game has started
     if (room.isOfflineMode) {
       room.gameState = 'STARTING';
+      room.systemLogs = [{ id: 'init', text: '[SYSTEM] Everybody sleep.' }];
       broadcastRoomState(code);
       io.to(code).emit('gameStarted');
       startRoomTimer(code, 5, (r) => {

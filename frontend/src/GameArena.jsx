@@ -31,17 +31,17 @@ export default function GameArena({
 
   const prevGameStateRef = useRef(null);
 
+  const currentPlayer = { playerId: localPlayerId };
+  const room = roomState || {};
+
   const playVoiceover = (text) => {
-    const currentPlayer = { playerId: localPlayerId };
-    const room = roomState;
-    if (!room || currentPlayer.playerId !== room.hostId || !room.isOfflineMode) return;
+    if (currentPlayer.playerId !== room.hostId || !room.isOfflineMode) return;
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9; // Slightly slower for dramatic effect
-    utterance.pitch = 0.8; // Deeper, more serious tone
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   };
+
+  const voiceoverTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!roomState || !roomState.isOfflineMode) return;
@@ -50,23 +50,57 @@ export default function GameArena({
     if (currentGameState === prevGameStateRef.current) return;
     prevGameStateRef.current = currentGameState;
 
-    if (currentGameState === 'STARTING') {
-      playVoiceover("The game is starting. Everyone, close your eyes.");
-    } else if (currentGameState === 'NIGHT_MAFIA_BUFFER') {
-      playVoiceover("Mafia, open your eyes and select your target.");
-    } else if (currentGameState === 'NIGHT_DOCTOR_BUFFER') {
-      playVoiceover("Mafia, go to sleep. Doctor, open your eyes and select someone to save.");
-    } else if (currentGameState === 'MORNING_REVEAL') {
-      const killedId = roomState.nightResult?.killed;
-      if (killedId) {
-        const victim = roomState.players.find(p => p.id === killedId);
-        const name = victim ? victim.name : "Someone";
-        playVoiceover("Everyone, wake up. " + name + " was killed in the night.");
-      } else {
-        playVoiceover("Everyone, wake up. It was a quiet night; no one died.");
-      }
+    if (voiceoverTimeoutRef.current) {
+      clearTimeout(voiceoverTimeoutRef.current);
     }
-  }, [roomState?.gameState, roomState?.nightResult?.killed, roomState?.isOfflineMode]);
+
+    if (currentGameState === 'STARTING') {
+      playVoiceover("Everybody sleep.");
+    } else if (currentGameState === 'NIGHT_MAFIA_BUFFER') {
+      playVoiceover("Mafia wake up. Choose your target.");
+    } else if (currentGameState === 'NIGHT_DOCTOR_BUFFER') {
+      playVoiceover("Mafia sleep. Doctor wake up. Choose who to save.");
+    } else if (currentGameState === 'MORNING_REVEAL') {
+      playVoiceover("Doctor sleep. Everybody wake up.");
+      const killedId = roomState.nightResult?.killed;
+      voiceoverTimeoutRef.current = setTimeout(() => {
+        if (killedId) {
+          const victim = roomState.players.find(p => p.id === killedId);
+          const name = victim ? victim.name : "Someone";
+          playVoiceover(name + " died.");
+        } else {
+          playVoiceover("Nobody was killed.");
+        }
+      }, 2000);
+    } else if (currentGameState === 'DAY') {
+      playVoiceover("Discuss and vote.");
+    } else if (currentGameState === 'LYNCH_REVEAL') {
+      const victimName = roomState.lynchResult?.name;
+      if (victimName) {
+        playVoiceover(victimName + " was voted out. Everybody sleep.");
+      } else {
+        playVoiceover("Nobody was voted out. Everybody sleep.");
+      }
+    } else if (currentGameState === 'GAME_OVER_MAFIA') {
+      playVoiceover("Game over. Mafias won.");
+    } else if (currentGameState === 'GAME_OVER_CIVILIANS') {
+      playVoiceover("Game over. Civilians win.");
+    }
+  }, [
+    roomState?.gameState,
+    roomState?.nightResult?.killed,
+    roomState?.lynchResult?.name,
+    roomState?.isOfflineMode,
+    roomState?.players
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (voiceoverTimeoutRef.current) {
+        clearTimeout(voiceoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-scroll chat / logs to bottom
   useEffect(() => {
@@ -230,8 +264,8 @@ export default function GameArena({
   return (
     <div className="w-full min-h-screen overflow-hidden flex flex-col items-center justify-center pt-20 md:pt-24 p-4">
       {shouldBlackout && (
-        <div className="fixed inset-0 z-[150] bg-black text-gray-500 flex items-center justify-center font-bold text-xl uppercase tracking-widest pixel-font">
-          CLOSE YOUR EYES
+        <div className="fixed inset-0 z-[150] bg-black text-white flex items-center justify-center font-bold text-xl uppercase tracking-widest pixel-font">
+          SLEEP
         </div>
       )}
       {/* Options/Menu Toggle Button */}
