@@ -34,9 +34,10 @@ function App() {
   const [kickedAlert, setKickedAlert] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   
-  // Media states (defaulting to true)
-  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
-  const isSoundOn = isAudioPlaying;
+  // Media states (defaulting to false)
+  const [isSoundOn, setIsSoundOn] = useState(false);
+  const isAudioPlaying = isSoundOn;
+  const setIsAudioPlaying = setIsSoundOn;
   const bgmRef = useRef(new Audio('/sounds/background-music.mp3'));
 
   // Configure audio looping and cleanup
@@ -49,36 +50,13 @@ function App() {
 
   // BGM playback state handler based on currentView and sound setting
   useEffect(() => {
-    if (currentView === 'LOBBY' || currentView === 'WAITING_ROOM') {
-      if (isAudioPlaying) {
-        bgmRef.current.play().catch((err) => {
-          console.warn('BGM playback failed:', err);
-        });
-      } else {
-        bgmRef.current.pause();
-      }
-    } else if (currentView === 'GAME') {
+    // Only attempt to play if the user has explicitly turned the sound ON
+    if (isSoundOn && (currentView === 'LOBBY' || currentView === 'WAITING_ROOM')) {
+      bgmRef.current.play().catch(e => console.log('BGM Play blocked:', e));
+    } else {
       bgmRef.current.pause();
-      bgmRef.current.currentTime = 0;
     }
-  }, [currentView, isAudioPlaying]);
-
-  // Document interaction autoplay bypass effect
-  useEffect(() => {
-    const handleFirstClick = () => {
-      if (bgmRef.current && isAudioPlaying && bgmRef.current.paused && (currentView === 'LOBBY' || currentView === 'WAITING_ROOM')) {
-        bgmRef.current.play().catch((err) => {
-          console.warn('Click interaction audio play blocked:', err);
-        });
-      }
-      document.removeEventListener('click', handleFirstClick);
-    };
-
-    document.addEventListener('click', handleFirstClick);
-    return () => {
-      document.removeEventListener('click', handleFirstClick);
-    };
-  }, [isAudioPlaying, currentView]);
+  }, [isSoundOn, currentView]);
 
   // Keep Render backend awake on initial page load
   useEffect(() => {
@@ -280,6 +258,16 @@ function App() {
           background: #ffffff;
         }
         
+        @keyframes slow-pulse-anim {
+          0% { opacity: 0.8; box-shadow: 0 4px 0 #000; }
+          50% { opacity: 1; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4); }
+          100% { opacity: 0.8; box-shadow: 0 4px 0 #000; }
+        }
+        .sound-off-pulse {
+          animation: slow-pulse-anim 2s infinite ease-in-out;
+          border-color: #dc2626 !important;
+        }
+        
         /* Win95 classic sound button */
         .classic-win95-btn {
           background: #c0c0c0;
@@ -351,7 +339,7 @@ function App() {
       {currentView !== 'GAME' && (
         <button
           onClick={toggleSound}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font border-2 border-gray-100 border-b-4 border-r-4 border-b-gray-500 border-r-gray-500 bg-gray-300 text-black active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] transition-all"
+          className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font border-2 border-gray-100 border-b-4 border-r-4 border-b-gray-500 border-r-gray-500 bg-gray-300 text-black active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] transition-all ${!isSoundOn ? 'sound-off-pulse' : ''}`}
         >
           <span className={`w-2.5 h-2.5 inline-block ${isSoundOn ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
           SOUND: {isSoundOn ? 'ON' : 'OFF'}

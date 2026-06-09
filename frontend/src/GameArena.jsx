@@ -4,6 +4,20 @@ import { AVATARS } from './avatars';
 
 const availableAvatars = AVATARS;
 
+const AUDIO_FILES = {
+  start: new Audio('/sounds/start.mp3'),
+  mafia_wake: new Audio('/sounds/mafia_wake.mp3'),
+  doctor_wake: new Audio('/sounds/doctor_wake.mp3'),
+  everyone_wake: new Audio('/sounds/everyone_wake.mp3'),
+  eliminated: new Audio('/sounds/eliminated.mp3'),
+  saved: new Audio('/sounds/saved.mp3'),
+  discuss: new Audio('/sounds/discuss.mp3'),
+  voted_out: new Audio('/sounds/voted_out.mp3'),
+  tied: new Audio('/sounds/tied.mp3'),
+  win_mafia: new Audio('/sounds/win_mafia.mp3'),
+  win_civilians: new Audio('/sounds/win_civilians.mp3')
+};
+
 export default function GameArena({
   socket,
   localPlayerId,
@@ -34,11 +48,14 @@ export default function GameArena({
   const currentPlayer = { playerId: localPlayerId };
   const room = roomState || {};
 
-  const playAudioCue = (filename) => {
+  const playAudioCue = (cueName) => {
     if (currentPlayer.playerId !== room.hostId || !room.isOfflineMode) return;
 
-    const audio = new Audio(`/sounds/${filename}`);
-    audio.play().catch(err => console.error('Audio playback failed:', err));
+    const audioInstance = AUDIO_FILES[cueName];
+    if (audioInstance) {
+      audioInstance.currentTime = 0; // Reset to start just in case
+      audioInstance.play().catch(err => console.error(`Failed to play ${cueName}:`, err));
+    }
   };
 
   const audioTimeoutRef = useRef(null);
@@ -55,37 +72,37 @@ export default function GameArena({
     }
 
     if (currentGameState === 'STARTING') {
-      playAudioCue('start.mp3');
+      playAudioCue('start');
     } else if (currentGameState === 'NIGHT_MAFIA' || currentGameState === 'NIGHT_MAFIA_BUFFER') {
       if (prevGameStateRef.current !== 'NIGHT_MAFIA' && prevGameStateRef.current !== 'NIGHT_MAFIA_BUFFER') {
-        playAudioCue('mafia_wake.mp3');
+        playAudioCue('mafia_wake');
       }
     } else if (currentGameState === 'NIGHT_DOCTOR' || currentGameState === 'NIGHT_DOCTOR_BUFFER') {
       if (prevGameStateRef.current !== 'NIGHT_DOCTOR' && prevGameStateRef.current !== 'NIGHT_DOCTOR_BUFFER') {
-        playAudioCue('doctor_wake.mp3');
+        playAudioCue('doctor_wake');
       }
     } else if (currentGameState === 'MORNING_REVEAL') {
-      playAudioCue('everyone_wake.mp3');
+      playAudioCue('everyone_wake');
       const killedId = roomState.nightResult?.killed;
       audioTimeoutRef.current = setTimeout(() => {
         if (killedId) {
-          playAudioCue('eliminated.mp3');
+          playAudioCue('eliminated');
         } else {
-          playAudioCue('saved.mp3');
+          playAudioCue('saved');
         }
       }, 3000);
     } else if (currentGameState === 'DAY') {
-      playAudioCue('discuss.mp3');
+      playAudioCue('discuss');
     } else if (currentGameState === 'LYNCH_REVEAL') {
       if (roomState.lynchResult?.killed) {
-        playAudioCue('voted_out.mp3');
+        playAudioCue('voted_out');
       } else {
-        playAudioCue('tied.mp3');
+        playAudioCue('tied');
       }
     } else if (currentGameState === 'GAME_OVER_MAFIA') {
-      playAudioCue('win_mafia.mp3');
+      playAudioCue('win_mafia');
     } else if (currentGameState === 'GAME_OVER_CIVILIANS') {
-      playAudioCue('win_civilians.mp3');
+      playAudioCue('win_civilians');
     }
   }, [
     roomState?.gameState,
@@ -387,6 +404,9 @@ export default function GameArena({
             </div>
 
             <div className="border-t border-gray-700 pt-4 mt-4">
+              <p className="text-[7px] text-yellow-500 text-center mb-3 leading-normal uppercase">
+                NOTE: TAP THE SCREEN ONCE BEFORE STARTING TO UNLOCK AUDIO.
+              </p>
               <button
                 onClick={() => socket.emit('forceSkipPhase')}
                 className="w-full retro-btn retro-btn-red py-2.5 text-[8px] font-bold tracking-widest uppercase cursor-pointer"

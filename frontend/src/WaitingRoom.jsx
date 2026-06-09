@@ -381,19 +381,26 @@ export default function WaitingRoom({
       {/* Action Area & Pulsing Button */}
       <div className="w-full max-w-sm flex flex-col items-center justify-center mb-6">
         {isHost ? (
-          <motion.button
-            onClick={handleStartGame}
-            disabled={roomState.players.length < 3}
-            animate={roomState.players.length >= 3 ? { scale: [1, 1.05, 1] } : {}}
-            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className={`w-full retro-btn py-4 text-xs font-bold tracking-widest uppercase ${
-              roomState.players.length >= 3 
-                ? 'retro-btn-red cursor-pointer' 
-                : 'bg-gray-800 text-gray-500 border-gray-900 cursor-not-allowed shadow-none'
-            }`}
-          >
-            {roomState.players.length >= 3 ? 'START GAME' : 'NEED MORE PLAYERS'}
-          </motion.button>
+          <>
+            {roomState.isOfflineMode && (
+              <p className="text-[7px] text-yellow-500 text-center mb-3 leading-normal uppercase pixel-font">
+                NOTE: TAP THE SCREEN ONCE BEFORE STARTING TO UNLOCK AUDIO.
+              </p>
+            )}
+            <motion.button
+              onClick={handleStartGame}
+              disabled={roomState.players.length < 3}
+              animate={roomState.players.length >= 3 ? { scale: [1, 1.05, 1] } : {}}
+              transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+              className={`w-full retro-btn py-4 text-xs font-bold tracking-widest uppercase ${
+                roomState.players.length >= 3 
+                  ? 'retro-btn-red cursor-pointer' 
+                  : 'bg-gray-800 text-gray-500 border-gray-900 cursor-not-allowed shadow-none'
+              }`}
+            >
+              {roomState.players.length >= 3 ? 'START GAME' : 'NEED MORE PLAYERS'}
+            </motion.button>
+          </>
         ) : (
           <motion.div
             animate={{ opacity: [0.4, 1, 0.4] }}
