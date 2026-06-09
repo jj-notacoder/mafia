@@ -34,14 +34,14 @@ export default function GameArena({
   const currentPlayer = { playerId: localPlayerId };
   const room = roomState || {};
 
-  const playVoiceover = (text) => {
+  const playAudioCue = (filename) => {
     if (currentPlayer.playerId !== room.hostId || !room.isOfflineMode) return;
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    const audio = new Audio(`/sounds/${filename}`);
+    audio.play().catch(err => console.error('Audio playback failed:', err));
   };
 
-  const voiceoverTimeoutRef = useRef(null);
+  const audioTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!roomState || !roomState.isOfflineMode) return;
@@ -50,54 +50,56 @@ export default function GameArena({
     if (currentGameState === prevGameStateRef.current) return;
     prevGameStateRef.current = currentGameState;
 
-    if (voiceoverTimeoutRef.current) {
-      clearTimeout(voiceoverTimeoutRef.current);
+    if (audioTimeoutRef.current) {
+      clearTimeout(audioTimeoutRef.current);
     }
 
     if (currentGameState === 'STARTING') {
-      playVoiceover("Everybody sleep.");
-    } else if (currentGameState === 'NIGHT_MAFIA_BUFFER') {
-      playVoiceover("Mafia wake up. Choose your target.");
-    } else if (currentGameState === 'NIGHT_DOCTOR_BUFFER') {
-      playVoiceover("Mafia sleep. Doctor wake up. Choose who to save.");
+      playAudioCue('start.mp3');
+    } else if (currentGameState === 'NIGHT_MAFIA' || currentGameState === 'NIGHT_MAFIA_BUFFER') {
+      if (prevGameStateRef.current !== 'NIGHT_MAFIA' && prevGameStateRef.current !== 'NIGHT_MAFIA_BUFFER') {
+        playAudioCue('mafia_wake.mp3');
+      }
+    } else if (currentGameState === 'NIGHT_DOCTOR' || currentGameState === 'NIGHT_DOCTOR_BUFFER') {
+      if (prevGameStateRef.current !== 'NIGHT_DOCTOR' && prevGameStateRef.current !== 'NIGHT_DOCTOR_BUFFER') {
+        playAudioCue('doctor_wake.mp3');
+      }
     } else if (currentGameState === 'MORNING_REVEAL') {
-      playVoiceover("Doctor sleep. Everybody wake up.");
+      playAudioCue('everyone_wake.mp3');
       const killedId = roomState.nightResult?.killed;
-      voiceoverTimeoutRef.current = setTimeout(() => {
+      audioTimeoutRef.current = setTimeout(() => {
         if (killedId) {
-          const victim = roomState.players.find(p => p.id === killedId);
-          const name = victim ? victim.name : "Someone";
-          playVoiceover(name + " died.");
+          playAudioCue('eliminated.mp3');
         } else {
-          playVoiceover("Nobody was killed.");
+          playAudioCue('saved.mp3');
         }
-      }, 2000);
+      }, 3000);
     } else if (currentGameState === 'DAY') {
-      playVoiceover("Discuss and vote.");
+      playAudioCue('discuss.mp3');
     } else if (currentGameState === 'LYNCH_REVEAL') {
-      const victimName = roomState.lynchResult?.name;
-      if (victimName) {
-        playVoiceover(victimName + " was voted out. Everybody sleep.");
+      if (roomState.lynchResult?.killed) {
+        playAudioCue('voted_out.mp3');
       } else {
-        playVoiceover("Nobody was voted out. Everybody sleep.");
+        playAudioCue('tied.mp3');
       }
     } else if (currentGameState === 'GAME_OVER_MAFIA') {
-      playVoiceover("Game over. Mafias won.");
+      playAudioCue('win_mafia.mp3');
     } else if (currentGameState === 'GAME_OVER_CIVILIANS') {
-      playVoiceover("Game over. Civilians win.");
+      playAudioCue('win_civilians.mp3');
     }
   }, [
     roomState?.gameState,
+    roomState?.lastAction,
     roomState?.nightResult?.killed,
-    roomState?.lynchResult?.name,
+    roomState?.lynchResult?.killed,
     roomState?.isOfflineMode,
     roomState?.players
   ]);
 
   useEffect(() => {
     return () => {
-      if (voiceoverTimeoutRef.current) {
-        clearTimeout(voiceoverTimeoutRef.current);
+      if (audioTimeoutRef.current) {
+        clearTimeout(audioTimeoutRef.current);
       }
     };
   }, []);

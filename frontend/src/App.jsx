@@ -26,7 +26,7 @@ const getPlayerId = () => {
 function App() {
   const [playerId] = useState(getPlayerId);
   // Global routing and lobby states
-  const [screen, setScreen] = useState('LOBBY'); // 'LOBBY' or 'WAITING_ROOM'
+  const [currentView, setCurrentView] = useState('LOBBY');
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
@@ -36,34 +36,38 @@ function App() {
   
   // Media states (defaulting to true)
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
-  const audioRef = useRef(null);
+  const isSoundOn = isAudioPlaying;
+  const bgmRef = useRef(new Audio('/sounds/background-music.mp3'));
 
-  // Keep Render backend awake on initial page load
+  // Configure audio looping and cleanup
   useEffect(() => {
-    fetch(`${backendUrl}/health`)
-      .then((res) => res.text())
-      .then((data) => console.log('[HEALTH] Render server response:', data))
-      .catch((err) => console.warn('[HEALTH] Failed to ping Render server:', err));
+    bgmRef.current.loop = true;
+    return () => {
+      bgmRef.current.pause();
+    };
   }, []);
 
-  // Audio state effect handler
+  // BGM playback state handler based on currentView and sound setting
   useEffect(() => {
-    if (audioRef.current) {
+    if (currentView === 'LOBBY' || currentView === 'WAITING_ROOM') {
       if (isAudioPlaying) {
-        audioRef.current.play().catch((err) => {
-          console.warn('Playback prevented by browser policy until user interaction:', err);
+        bgmRef.current.play().catch((err) => {
+          console.warn('BGM playback failed:', err);
         });
       } else {
-        audioRef.current.pause();
+        bgmRef.current.pause();
       }
+    } else if (currentView === 'GAME') {
+      bgmRef.current.pause();
+      bgmRef.current.currentTime = 0;
     }
-  }, [isAudioPlaying]);
+  }, [currentView, isAudioPlaying]);
 
   // Document interaction autoplay bypass effect
   useEffect(() => {
     const handleFirstClick = () => {
-      if (audioRef.current && isAudioPlaying && audioRef.current.paused) {
-        audioRef.current.play().catch((err) => {
+      if (bgmRef.current && isAudioPlaying && bgmRef.current.paused && (currentView === 'LOBBY' || currentView === 'WAITING_ROOM')) {
+        bgmRef.current.play().catch((err) => {
           console.warn('Click interaction audio play blocked:', err);
         });
       }
@@ -74,7 +78,15 @@ function App() {
     return () => {
       document.removeEventListener('click', handleFirstClick);
     };
-  }, [isAudioPlaying]);
+  }, [isAudioPlaying, currentView]);
+
+  // Keep Render backend awake on initial page load
+  useEffect(() => {
+    fetch(`${backendUrl}/health`)
+      .then((res) => res.text())
+      .then((data) => console.log('[HEALTH] Render server response:', data))
+      .catch((err) => console.warn('[HEALTH] Failed to ping Render server:', err));
+  }, []);
 
   // Global socket listener hooks
   useEffect(() => {
@@ -88,7 +100,7 @@ function App() {
       console.log(`Room created: ${roomCode}`, roomState);
       setRoomCode(roomCode);
       setRoomState(roomState);
-      setScreen('WAITING_ROOM');
+      setCurrentView('WAITING_ROOM');
     });
 
     // Room join success (guest side)
@@ -96,7 +108,7 @@ function App() {
       console.log(`Successfully joined room: ${roomCode}`, roomState);
       setRoomCode(roomCode);
       setRoomState(roomState);
-      setScreen('WAITING_ROOM');
+      setCurrentView('WAITING_ROOM');
     });
 
     // Sync room data broadcasted from server
@@ -111,7 +123,7 @@ function App() {
 
       // If the game has been reset to LOBBY, transition back to WAITING_ROOM screen
       if (updatedState.gameState === 'LOBBY') {
-        setScreen('WAITING_ROOM');
+        setCurrentView('WAITING_ROOM');
       }
     };
 
@@ -122,7 +134,7 @@ function App() {
     socket.on('gameStarted', () => {
       console.log('Game is starting...');
       setIsAudioPlaying(false); // Cut music when game starts
-      setScreen('GAME'); // Transition to gameplay arena
+      setCurrentView('GAME'); // Transition to gameplay arena
     });
 
     // Handle generic server errors silently in global app context (Lobby will handle displaying them)
@@ -134,7 +146,7 @@ function App() {
       console.log('You were kicked by the host.');
       sessionStorage.removeItem('mafia_player_id');
       socket.disconnect();
-      setScreen('LOBBY');
+      setCurrentView('LOBBY');
       setKickedAlert(true);
       setTimeout(() => {
         setKickedAlert(false);
@@ -322,14 +334,6 @@ function App() {
       <div className="crt-light-roll"></div>
       <div className="crt-vignette"></div>
 
-      {/* Audio Element for Background Music */}
-      <audio
-        ref={audioRef}
-        src="desktop/mafia/bgmusic1.mp3"
-        autoPlay
-        loop
-      />
-
       {/* Atmospheric dark cinematic video background (Persistent and will not reset) */}
       <video
         src="desktop/mafia/backgroundvideo.mp4"
@@ -344,13 +348,15 @@ function App() {
       <div className="absolute inset-0 bg-black/60 z-1 pointer-events-none"></div>
 
       {/* Global Sound Control Button */}
-      <button
-        onClick={toggleSound}
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font border-2 border-gray-100 border-b-4 border-r-4 border-b-gray-500 border-r-gray-500 bg-gray-300 text-black active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] transition-all"
-      >
-        <span className={`w-2.5 h-2.5 inline-block ${isAudioPlaying ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
-        SOUND: {isAudioPlaying ? 'ON' : 'OFF'}
-      </button>
+      {currentView !== 'GAME' && (
+        <button
+          onClick={toggleSound}
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 px-4 py-2 text-[9px] tracking-wider font-bold cursor-pointer flex items-center gap-2 pixel-font border-2 border-gray-100 border-b-4 border-r-4 border-b-gray-500 border-r-gray-500 bg-gray-300 text-black active:border-b-2 active:border-r-2 active:translate-y-[2px] active:translate-x-[2px] transition-all"
+        >
+          <span className={`w-2.5 h-2.5 inline-block ${isSoundOn ? 'bg-green-600' : 'bg-red-600'} border border-black/50`}></span>
+          SOUND: {isSoundOn ? 'ON' : 'OFF'}
+        </button>
+      )}
 
       {/* Global version text */}
       <div className="fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom))] w-full text-center z-50 text-[8px] md:text-[9px] text-gray-500 uppercase tracking-widest pixel-font pointer-events-none">
@@ -367,7 +373,7 @@ function App() {
 
       {/* Conditional Screen Rendering Engine */}
       <div className="relative z-10 w-full flex-1 flex flex-col">
-        {screen === 'LOBBY' ? (
+        {currentView === 'LOBBY' ? (
           <Lobby
             socket={socket}
             playerName={playerName}
@@ -378,7 +384,7 @@ function App() {
             setIsJoining={setIsJoining}
             playerId={playerId}
           />
-        ) : screen === 'WAITING_ROOM' ? (
+        ) : currentView === 'WAITING_ROOM' ? (
           <WaitingRoom
             socket={socket}
             roomCode={roomCode}
@@ -387,7 +393,7 @@ function App() {
             playerId={playerId}
             onLeaveRoom={() => {
               setRoomCode('');
-              setScreen('LOBBY');
+              setCurrentView('LOBBY');
               setRoomState(null);
             }}
           />
@@ -397,7 +403,7 @@ function App() {
             localPlayerId={playerId}
             roomState={roomState}
             playerId={playerId}
-            onTransitionToWaitingRoom={() => setScreen('WAITING_ROOM')}
+            onTransitionToWaitingRoom={() => setCurrentView('WAITING_ROOM')}
           />
         )}
       </div>
